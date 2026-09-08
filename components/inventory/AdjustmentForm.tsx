@@ -1,0 +1,233 @@
+'use client';
+
+import Link from 'next/link';
+import { type FormEvent, useMemo, useState } from 'react';
+import Button from '@/components/ui/Button';
+import Input from '@/components/ui/Input';
+import { summarizeConversions } from '@/lib/uom';
+import { buildVariantLabel } from '@/lib/product-merchandising';
+
+type Product = {
+  id: string;
+  name: string;
+  stockQty: number;
+  reorderPoint: number;
+  baseUnitOfMeasure?: { id: string; code: string; name: string; isBase: boolean } | null;
+  variants: Array<{
+    id: string;
+    color: string | null;
+    size: string | null;
+    flavor: string | null;
+    model: string | null;
+    sku: string | null;
+    barcode: string | null;
+  }>;
+  uomConversions: Array<{
+    id: string;
+    unitOfMeasureId: string;
+    ratioToBase: number;
+    unitOfMeasure: { id: string; code: string; name: string; isBase: boolean };
+  }>;
+  isActive: boolean;
+};
+
+type InventoryReason = {
+  id: string;
+  code: string;
+  label: string;
+};
+
+export default function AdjustmentForm({
+  products,
+  reasons
+}: {
+  products: Product[];
+  reasons: InventoryReason[];
+}) {
+  const activeProducts = products.filter((product) => product.isActive);
+  const [productId, setProductId] = useState(activeProducts[0]?.id ?? '');
+  const [reasonId, setReasonId] = useState(reasons[0]?.id ?? '');
+  const [adjustmentType, setAdjustmentType] = useState<'ADD' | 'REMOVE'>('ADD');
+  const [qty, setQty] = useState('1');
+  const [notes, setNotes] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+
+  const selectedProduct = useMemo(
+    () => activeProducts.find((product) => product.id === productId),
+    [activeProducts, productId]
+  );
+
+  async function onSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError('');
+    setSuccess('');
+
+    const parsedQty = Number(qty);
+
+    if (!productId) {
+      setError('Por favor, selecciona un producto.');
+      return;
+    }
+
+    if (!reasonId) {
+      setError('Por favor, selecciona un motivo de ajuste.');
+      return;
+    }
+
+    if (!Number.isFinite(parsedQty) || parsedQty <= 0) {
+      setError('La cantidad del ajuste debe ser mayor a 0.');
+      return;
+    }
+
+    if (adjustmentType === 'REMOVE' && selectedProduct && parsedQty > selectedProduct.stockQty) {
+      setError('No se puede retirar más stock del disponible actualmente.');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const response = await fetch('/api/inventory/adjustments', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          productId,
+          reasonId,
+          qtyChange: adjustmentType === 'REMOVE' ? parsedQty * -1 : parsedQty,
+          notes: notes.trim() || null
+        })
+      });
+
+      const data = await response.json().catch(() => ({
+        error: 'No se pudo guardar la corrección de inventario.'
+      }));
+
+      setLoading(false);
+
+      if (!response.ok) {
+        setError(data.error ?? 'No se pudo guardar la corrección de inventario.');
+        return;
+      }
+
+      setSuccess('Corrección de inventario registrada con éxito. Actualiza la página para ver el inventario más reciente.');
+      setQty('1');
+      setNotes('');
+    } catch {
+      setLoading(false);
+      setError('No se pudo guardar la corrección de inventario.');
+    }
+  }
+
+  return (
+    <form onSubmit={onSubmit} className="space-y-5">
+      {!activeProducts.length ? (
+        <div className="rounded-2xl border border-dashed border-stone-300 bg-stone-50 px-4 py-5 text-sm text-stone-600">
+          <div className="font-semibold text-stone-900">Aún no hay productos listos para correcciones de inventario.</div>
+          <div className="mt-2">Crea productos primero; luego usa esta pantalla únicamente para correcciones excepcionales que no correspondan a conteos, devoluciones a proveedores ni transferencias entre sucursales.</div>
+          <div className="mt-3 flex flex-wrap gap-3">
+            <Link href="/products" className="font-semibold text-emerald-700 hover:text-emerald-800">
+              Abrir productos
+            </Link>
+            <Link href="/stock-counts" className="font-semibold text-stone-700 hover:text-stone-900">
+              Iniciar un conteo de inventario
+            </Link>
+          </div>
+        </div>
+      ) : null}
+
+      <div>
+        <label className="mb-2 block text-sm font-semibold text-stone-700">Producto</label>
+        <select
+          className="w-full rounded-xl border border-stone-300 bg-stone-50 px-4 py-3 text-sm outline-none transition focus:border-emerald-500 focus:bg-white"
+          value={productId}
+          onChange={(event) => setProductId(event.target.value)}
+        >
+          {activeProducts.map((product) => (
+            <option key={product.id} value={product.id}>
+              {product.name} | Stock actual: {product.stockQty}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <label className="mb-2 block text-sm font-semibold text-stone-700">Tipo de corrección</label>
+          <select
+            className="w-full rounded-xl border border-stone-300 bg-stone-50 px-4 py-3 text-sm outline-none transition focus:border-emerald-500 focus:bg-white"
+            value={adjustmentType}
+            onChange={(event) => setAdjustmentType(event.target.value as 'ADD' | 'REMOVE')}
+          >
+            <option value="ADD">Agregar stock</option>
+            <option value="REMOVE">Retirar stock</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="mb-2 block text-sm font-semibold text-stone-700">Motivo del ajuste</label>
+          <select
+            className="w-full rounded-xl border border-stone-300 bg-stone-50 px-4 py-3 text-sm outline-none transition focus:border-emerald-500 focus:bg-white"
+            value={reasonId}
+            onChange={(event) => setReasonId(event.target.value)}
+          >
+            {reasons.map((reason) => (
+              <option key={reason.id} value={reason.id}>
+                {reason.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label className="mb-2 block text-sm font-semibold text-stone-700">Cantidad</label>
+          <Input type="number" min="1" placeholder="Introduce la cantidad" value={qty} onChange={(event) => setQty(event.target.value)} />
+        </div>
+      </div>
+
+      <div>
+        <label className="mb-2 block text-sm font-semibold text-stone-700">Notas</label>
+        <Input placeholder="Notas de respaldo (opcional)" value={notes} onChange={(event) => setNotes(event.target.value)} />
+      </div>
+
+      {selectedProduct ? (
+        <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-600">
+          Producto seleccionado: <span className="font-semibold text-stone-900">{selectedProduct.name}</span> | Stock actual: <span className="font-semibold text-stone-900">{selectedProduct.stockQty}</span> {selectedProduct.baseUnitOfMeasure?.name.toLowerCase() ?? 'unidades base'}
+          <div className="mt-1 text-xs text-stone-500">
+            {summarizeConversions(
+              selectedProduct.uomConversions.map((conversion) => ({
+                unitName: conversion.unitOfMeasure.name,
+                ratioToBase: conversion.ratioToBase
+              })),
+              selectedProduct.baseUnitOfMeasure?.name
+            )}
+          </div>
+          {selectedProduct.variants.length ? (
+            <div className="mt-1 text-xs text-stone-500">
+              Variantes: {selectedProduct.variants.map((variant) => buildVariantLabel(variant) || variant.sku || variant.barcode || 'Variante').join(' • ')}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+        Usa conteos de inventario para variaciones, devoluciones a proveedores para retiros relacionados con proveedores y transferencias de sucursal para movimientos entre sucursales. Este formulario es ideal para bajas, uso interno y correcciones de saldo inicial.
+      </div>
+
+      {error ? (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+      ) : null}
+
+      {success ? (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{success}</div>
+      ) : null}
+
+      <Button type="submit" disabled={loading || !activeProducts.length}>
+        {loading ? 'Guardando corrección de inventario...' : 'Guardar corrección de inventario'}
+      </Button>
+    </form>
+  );
+}
