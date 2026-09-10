@@ -84,7 +84,7 @@ describe('purchases', () => {
   });
 
   it('returns readable labels and tones', () => {
-    expect(getPurchaseStatusLabel('FULLY_RECEIVED')).toBe('Received in full');
+    expect(getPurchaseStatusLabel('FULLY_RECEIVED')).toBe('Recibido completo');
     expect(purchaseStatusTone('PARTIALLY_RECEIVED')).toBe('blue');
     expect(payableStatusTone('OVERDUE')).toBe('red');
   });
