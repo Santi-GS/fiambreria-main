@@ -15,9 +15,9 @@ export default async function HomePage() {
           <div className="mb-5 inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-4 py-1.5 text-sm font-semibold text-emerald-700">
             Punto de venta • Inventario • Compras • Reportes
           </div>
-          <h1 className="text-5xl font-black tracking-tight text-stone-900 md:text-6xl">Gestiona una tienda real, no un proyecto escolar.</h1>
+          <h1 className="text-5xl font-black tracking-tight text-stone-900 md:text-6xl">Gestiona tu tienda.</h1>
           <p className="mt-6 max-w-2xl text-lg leading-8 text-stone-600">
-            Vertex POS ayuda a propietarios, gerentes y cajeros a gestionar la configuración inicial, productos, proveedores, compras, cobros, recibos, movimientos de inventario, ajustes y reportes en un solo espacio de trabajo.
+            Sistema punto de venta ayuda a propietarios, gerentes y cajeros a gestionar la configuración inicial, productos, proveedores, compras, cobros, recibos, movimientos de inventario, ajustes y reportes en un solo espacio de trabajo.
           </p>
           <div className="mt-8 flex flex-wrap gap-4">
             <Link href="/signup" className="rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700">
