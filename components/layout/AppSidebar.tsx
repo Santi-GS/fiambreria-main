@@ -413,10 +413,6 @@ export default function AppSidebar({
     [permissions, role]
   );
 
-  const activeLink = visibleSections
-    .flatMap((section) => section.links)
-    .find((link) => pathname === link.href || pathname.startsWith(`${link.href}/`));
-
   async function switchShop(nextShopId: string) {
     if (!nextShopId || nextShopId === activeShopId) {
       return;
@@ -498,16 +494,6 @@ export default function AppSidebar({
           </button>
         </div>
       </div>
-
-      {!isCollapsed ? (
-        <div className="rounded-[30px] border border-emerald-100 bg-[linear-gradient(145deg,rgba(236,253,245,0.92),rgba(255,255,255,0.88),rgba(239,246,255,0.86))] p-4">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-emerald-700">Enfoque actual</div>
-          <div className="mt-2 text-lg font-black text-stone-950">{activeLink?.label ?? 'Espacio de trabajo'}</div>
-          <p className="mt-2 text-sm leading-6 text-stone-600">
-            {activeLink?.description ?? 'Cambia entre ventas, catálogo y tareas administrativas sin perder el contexto.'}
-          </p>
-        </div>
-      ) : null}
 
       <nav className="min-h-0 flex-1 space-y-5 overflow-y-auto pr-1">
         {visibleSections.map((section) => (
