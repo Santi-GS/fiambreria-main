@@ -154,11 +154,11 @@ export default function CommandPalette({ role }: { role: ShopRole }) {
 
   return (
     <>
-      <div className="mb-6 flex items-center justify-end">
+      <div className="inline-flex items-center">
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="inline-flex items-center gap-3 rounded-full border border-white/80 bg-white/82 px-4 py-2.5 text-sm font-semibold text-stone-700 shadow-[0_18px_36px_-28px_rgba(28,25,23,0.35)] backdrop-blur transition hover:-translate-y-0.5 hover:border-emerald-200 hover:text-stone-950"
+          className="inline-flex h-12 items-center justify-center gap-3 rounded-full border border-white/80 bg-white/88 px-4 text-sm font-semibold text-stone-700 shadow-[0_18px_36px_-28px_rgba(28,25,23,0.35)] backdrop-blur transition hover:-translate-y-0.5 hover:border-emerald-200 hover:text-stone-950"
         >
           <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">

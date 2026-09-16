@@ -151,7 +151,7 @@ export default async function CheckoutPage() {
   return (
     <div className="space-y-6">
       <AppHeader
-        title="Cobro"
+        title="Punto de venta"
         subtitle="Procesa ventas rápidamente, evita vender de más y genera transacciones listas para recibo."
       />
 
