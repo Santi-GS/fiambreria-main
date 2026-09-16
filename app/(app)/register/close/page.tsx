@@ -7,6 +7,7 @@ import {
   serializeCashSession,
   serializeRegisterSessionSummary
 } from '@/lib/serializers/register';
+import { sanitizeCashDenominations } from '@/lib/shop-settings';
 
 export default async function RegisterClosePage() {
   const { shopId, userId, role } = await requirePageRole('CASHIER');
@@ -43,6 +44,7 @@ export default async function RegisterClosePage() {
       <RegisterCloseManager
         initialSessions={sessions}
         currencySymbol={settings?.currencySymbol ?? '₱'}
+        denominations={sanitizeCashDenominations(settings?.cashDenominations)}
       />
     </div>
   );

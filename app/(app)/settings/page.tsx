@@ -2,7 +2,10 @@ import AppHeader from '@/components/layout/AppHeader';
 import SettingsForm from '@/components/settings/SettingsForm';
 import { requirePageRole } from '@/lib/authz';
 import { prisma } from '@/lib/prisma';
-import { sanitizeDefaultPaymentMethods } from '@/lib/shop-settings';
+import {
+  sanitizeCashDenominations,
+  sanitizeDefaultPaymentMethods
+} from '@/lib/shop-settings';
 
 export default async function SettingsPage() {
   const { shopId } = await requirePageRole('MANAGER');
@@ -40,6 +43,7 @@ export default async function SettingsPage() {
           receiptShowBrandMark: settings?.receiptShowBrandMark ?? false,
           printerSafeMode: settings?.printerSafeMode ?? true,
           defaultPaymentMethods: sanitizeDefaultPaymentMethods(settings?.defaultPaymentMethods),
+          cashDenominations: sanitizeCashDenominations(settings?.cashDenominations),
           printerName: settings?.printerName ?? '',
           printerConnection: settings?.printerConnection ?? 'MANUAL',
           cashDrawerKickEnabled: settings?.cashDrawerKickEnabled ?? false,

@@ -16,18 +16,25 @@ export async function acquireCashSessionOpenLock(
   await db.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${lockKey}))`;
 }
 
-export const REGISTER_DENOMINATIONS = [
-  { value: 1000, label: '1000 bill' },
-  { value: 500, label: '500 bill' },
-  { value: 200, label: '200 bill' },
-  { value: 100, label: '100 bill' },
-  { value: 50, label: '50 bill' },
-  { value: 20, label: '20 bill' },
-  { value: 10, label: '10 coin' },
-  { value: 5, label: '5 coin' },
-  { value: 1, label: '1 coin' },
-  { value: 0.25, label: '25 centavo' }
+export type RegisterDenominationItem = {
+  value: number;
+  label: string;
+};
+
+export const DEFAULT_ARGENTINA_DENOMINATIONS: readonly RegisterDenominationItem[] = [
+  { value: 20000, label: 'Billete de $20.000' },
+  { value: 10000, label: 'Billete de $10.000' },
+  { value: 2000, label: 'Billete de $2.000' },
+  { value: 1000, label: 'Billete de $1.000' },
+  { value: 500, label: 'Billete de $500' },
+  { value: 200, label: 'Billete de $200' },
+  { value: 100, label: 'Billete de $100' },
+  { value: 50, label: 'Billete de $50' },
+  { value: 20, label: 'Billete de $20' },
+  { value: 10, label: 'Billete de $10' }
 ] as const;
+
+export const REGISTER_DENOMINATIONS = DEFAULT_ARGENTINA_DENOMINATIONS;
 
 export type RegisterDenominationSnapshot = Record<string, number>;
 
@@ -69,42 +76,74 @@ export type RegisterSessionSummary = {
   timeline: RegisterTimelineEntry[];
 };
 
-function getDenominationKey(value: number) {
+export function getDenominationKey(value: number) {
   return value.toFixed(2);
 }
 
-export function createEmptyDenominationSnapshot(): RegisterDenominationSnapshot {
+export function createEmptyDenominationSnapshot(
+  denominations: readonly RegisterDenominationItem[] = REGISTER_DENOMINATIONS
+): RegisterDenominationSnapshot {
   return Object.fromEntries(
-    REGISTER_DENOMINATIONS.map((entry) => [getDenominationKey(entry.value), 0])
+    denominations.map((entry) => [getDenominationKey(entry.value), 0])
   );
 }
 
 export function normalizeDenominationSnapshot(
-  input: unknown
+  input: unknown,
+  denominations: readonly RegisterDenominationItem[] = REGISTER_DENOMINATIONS
 ): RegisterDenominationSnapshot {
-  const base = createEmptyDenominationSnapshot();
+  const base = createEmptyDenominationSnapshot(denominations);
 
   if (!input || typeof input !== 'object' || Array.isArray(input)) {
     return base;
   }
 
-  for (const denomination of REGISTER_DENOMINATIONS) {
+  const record = input as Record<string, unknown>;
+
+  for (const denomination of denominations) {
     const key = getDenominationKey(denomination.value);
-    const rawValue = (input as Record<string, unknown>)[key];
+    const rawValue = record[key];
     const parsed = Number(rawValue);
     base[key] = Number.isFinite(parsed) && parsed >= 0 ? Math.floor(parsed) : 0;
+  }
+
+  for (const [key, rawValue] of Object.entries(record)) {
+    const numKey = Number(key);
+    if (Number.isFinite(numKey) && numKey > 0) {
+      const normalizedKey = getDenominationKey(numKey);
+      if (!(normalizedKey in base)) {
+        const parsed = Number(rawValue);
+        if (Number.isFinite(parsed) && parsed > 0) {
+          base[normalizedKey] = Math.floor(parsed);
+        }
+      }
+    }
   }
 
   return base;
 }
 
 export function calculateDenominationTotal(
-  snapshot: RegisterDenominationSnapshot
+  snapshot: RegisterDenominationSnapshot,
+  denominations?: readonly RegisterDenominationItem[]
 ) {
-  return roundCurrency(
-    REGISTER_DENOMINATIONS.reduce((sum, denomination) => {
+  if (denominations && denominations.length > 0) {
+    let sum = 0;
+    for (const denomination of denominations) {
       const key = getDenominationKey(denomination.value);
-      return sum + denomination.value * (snapshot[key] ?? 0);
+      sum += denomination.value * (snapshot[key] ?? 0);
+    }
+    return roundCurrency(sum);
+  }
+
+  return roundCurrency(
+    Object.entries(snapshot).reduce((sum, [key, count]) => {
+      const value = Number(key);
+      const parsedCount = Number(count);
+      if (Number.isFinite(value) && value > 0 && Number.isFinite(parsedCount) && parsedCount > 0) {
+        return sum + value * parsedCount;
+      }
+      return sum;
     }, 0)
   );
 }

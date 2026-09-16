@@ -1,5 +1,6 @@
 import { PAYMENT_METHODS, type PaymentMethod } from '@/lib/payments';
 import { roundCurrency } from '@/lib/inventory';
+import { DEFAULT_ARGENTINA_DENOMINATIONS, type RegisterDenominationItem } from '@/lib/register';
 
 export const TAX_MODE_OPTIONS = ['EXCLUSIVE', 'INCLUSIVE', 'NON_TAXABLE'] as const;
 export const PRINTER_CONNECTION_OPTIONS = ['USB', 'NETWORK', 'BLUETOOTH', 'MANUAL'] as const;
@@ -10,6 +11,42 @@ export const DEFAULT_REORDER_SAFETY_STOCK = 3;
 
 export type TaxModeValue = (typeof TAX_MODE_OPTIONS)[number];
 export type PrinterConnectionValue = (typeof PRINTER_CONNECTION_OPTIONS)[number];
+
+export function sanitizeCashDenominations(value: unknown): RegisterDenominationItem[] {
+  if (!Array.isArray(value)) {
+    return [...DEFAULT_ARGENTINA_DENOMINATIONS];
+  }
+
+  const seenValues = new Set<number>();
+  const parsed: RegisterDenominationItem[] = [];
+
+  for (const entry of value) {
+    if (!entry || typeof entry !== 'object') continue;
+    const rawVal = (entry as Record<string, unknown>).value;
+    const rawLabel = (entry as Record<string, unknown>).label;
+    const num = Number(rawVal);
+
+    if (!Number.isFinite(num) || num <= 0) continue;
+    const roundedValue = Math.round(num * 100) / 100;
+    if (seenValues.has(roundedValue)) continue;
+    seenValues.add(roundedValue);
+
+    const label =
+      typeof rawLabel === 'string' && rawLabel.trim()
+        ? rawLabel.trim()
+        : roundedValue >= 10
+        ? `Billete de $${roundedValue.toLocaleString('es-AR')}`
+        : `Moneda de $${roundedValue.toLocaleString('es-AR')}`;
+
+    parsed.push({ value: roundedValue, label });
+  }
+
+  if (parsed.length === 0) {
+    return [...DEFAULT_ARGENTINA_DENOMINATIONS];
+  }
+
+  return parsed.sort((a, b) => b.value - a.value);
+}
 
 export function sanitizeOfflineStockMaxAgeMinutes(value: unknown) {
   const parsed = Number(value);

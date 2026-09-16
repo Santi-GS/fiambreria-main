@@ -7,10 +7,11 @@ import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
 import Input from '@/components/ui/Input';
 import {
-  REGISTER_DENOMINATIONS,
   calculateDenominationTotal,
   createEmptyDenominationSnapshot,
   getCashMovementLabel,
+  REGISTER_DENOMINATIONS,
+  type RegisterDenominationItem,
   type RegisterDenominationSnapshot
 } from '@/lib/register';
 import { dateTime, money } from '@/lib/format';
@@ -33,11 +34,14 @@ type SessionForms = Record<string, SessionForm>;
 
 const MOVEMENT_OPTIONS: MovementType[] = ['PAYOUT', 'CASH_DROP', 'PETTY_CASH'];
 
-function createInitialForm(session: SerializedActiveCashSession): SessionForm {
+function createInitialForm(
+  session: SerializedActiveCashSession,
+  denoms: readonly RegisterDenominationItem[] | RegisterDenominationItem[] = REGISTER_DENOMINATIONS
+): SessionForm {
   const denominationBreakdown =
     session.denominationBreakdown && Object.values(session.denominationBreakdown).some((value) => value > 0)
       ? session.denominationBreakdown
-      : createEmptyDenominationSnapshot();
+      : createEmptyDenominationSnapshot(denoms);
 
   return {
     countMethod: 'DENOMINATION',
@@ -70,14 +74,16 @@ function movementTone(type: string) {
 
 export default function RegisterCloseManager({
   initialSessions,
-  currencySymbol
+  currencySymbol,
+  denominations = REGISTER_DENOMINATIONS
 }: {
   initialSessions: SerializedActiveCashSession[];
   currencySymbol: string;
+  denominations?: readonly RegisterDenominationItem[] | RegisterDenominationItem[];
 }) {
   const [sessions, setSessions] = useState(initialSessions);
   const [forms, setForms] = useState<SessionForms>(
-    Object.fromEntries(initialSessions.map((session) => [session.id, createInitialForm(session)]))
+    Object.fromEntries(initialSessions.map((session) => [session.id, createInitialForm(session, denominations)]))
   );
   const [result, setResult] = useState<SerializedCashSession | null>(null);
   const [error, setError] = useState('');
@@ -111,7 +117,7 @@ export default function RegisterCloseManager({
         ...form.denominationBreakdown,
         [denominationKey]: count
       };
-      const countedTotal = calculateDenominationTotal(nextBreakdown).toFixed(2);
+      const countedTotal = calculateDenominationTotal(nextBreakdown, denominations).toFixed(2);
 
       return {
         ...current,
@@ -119,6 +125,21 @@ export default function RegisterCloseManager({
           ...form,
           denominationBreakdown: nextBreakdown,
           closingActual: form.countMethod === 'DENOMINATION' ? countedTotal : form.closingActual
+        }
+      };
+    });
+  }
+
+  function clearDenominations(sessionId: string) {
+    setForms((current) => {
+      const form = current[sessionId];
+      const nextBreakdown = createEmptyDenominationSnapshot(denominations);
+      return {
+        ...current,
+        [sessionId]: {
+          ...form,
+          denominationBreakdown: nextBreakdown,
+          closingActual: form.countMethod === 'DENOMINATION' ? '0.00' : form.closingActual
         }
       };
     });
@@ -277,7 +298,7 @@ export default function RegisterCloseManager({
 
       {sessions.map((session) => {
         const form = forms[session.id];
-        const countedTotal = calculateDenominationTotal(form?.denominationBreakdown ?? createEmptyDenominationSnapshot());
+        const countedTotal = calculateDenominationTotal(form?.denominationBreakdown ?? createEmptyDenominationSnapshot(denominations), denominations);
         const actual = Number(form?.closingActual ?? 0);
         const expected = Number(session.expectedCash);
         const variance = Number((actual - expected).toFixed(2));
@@ -342,6 +363,16 @@ export default function RegisterCloseManager({
                       >
                         Monto manual
                       </button>
+                      {form.countMethod === 'DENOMINATION' ? (
+                        <button
+                          type="button"
+                          onClick={() => clearDenominations(session.id)}
+                          className="rounded-full border border-stone-200 bg-white px-3 py-1.5 text-xs font-semibold text-stone-600 transition hover:border-stone-300 hover:bg-stone-100"
+                          title="Poner todos los billetes contados en cero"
+                        >
+                          Reiniciar conteo
+                        </button>
+                      ) : null}
                     </div>
                   </div>
 
@@ -359,7 +390,7 @@ export default function RegisterCloseManager({
                   </div>
 
                   <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                    {REGISTER_DENOMINATIONS.map((denomination) => {
+                    {denominations.map((denomination) => {
                       const key = denomination.value.toFixed(2);
                       const count = form.denominationBreakdown[key] ?? 0;
                       return (

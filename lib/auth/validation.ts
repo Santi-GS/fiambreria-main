@@ -432,6 +432,11 @@ export const supplierPaymentSchema = z.object({
   paidAt: z.string().trim().min(1, 'Payment date is required.')
 });
 
+export const cashDenominationItemSchema = z.object({
+  value: z.coerce.number().positive('El valor del billete debe ser mayor a cero.').max(10000000),
+  label: z.string().trim().min(1, 'La etiqueta es requerida.').max(60)
+});
+
 export const settingSchema = z.object({
   shopName: z.string().trim().min(2).max(120),
   legalBusinessName: z.string().trim().min(2).max(160),
@@ -450,6 +455,7 @@ export const settingSchema = z.object({
   receiptShowBrandMark: z.coerce.boolean().default(false),
   printerSafeMode: z.coerce.boolean().default(true),
   defaultPaymentMethods: z.array(paymentMethodSchema).min(1).default(DEFAULT_PAYMENT_METHODS),
+  cashDenominations: z.array(cashDenominationItemSchema).optional().nullable(),
   printerName: z.string().trim().max(120).optional().nullable(),
   printerConnection: z.enum(PRINTER_CONNECTION_OPTIONS).default('MANUAL'),
   cashDrawerKickEnabled: z.coerce.boolean().default(false),

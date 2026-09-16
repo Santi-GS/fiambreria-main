@@ -1256,6 +1256,7 @@ model ShopSetting {
   currencySymbol        String                @default("₱")
   taxRate               Decimal               @default(0) @db.Decimal(5, 2)
   defaultPaymentMethods Json?
+  cashDenominations     Json?
   receiptHeader         String?
   receiptFooter         String?
   receiptWidth          String                @default("80mm")

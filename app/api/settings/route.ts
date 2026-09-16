@@ -7,6 +7,7 @@ import { logActivity } from '@/lib/activity';
 import { normalizeText } from '@/lib/inventory';
 import { prisma } from '@/lib/prisma';
 import {
+  sanitizeCashDenominations,
   sanitizeDefaultPaymentMethods,
   sanitizeReorderSafetyStock
 } from '@/lib/shop-settings';
@@ -67,6 +68,7 @@ export async function PUT(request: Request) {
           taxMode: parsed.data.taxMode,
           taxRate: parsed.data.taxRate,
           defaultPaymentMethods: sanitizeDefaultPaymentMethods(parsed.data.defaultPaymentMethods),
+          cashDenominations: sanitizeCashDenominations(parsed.data.cashDenominations),
           receiptHeader: normalizeText(parsed.data.receiptHeader),
           receiptFooter: normalizeText(parsed.data.receiptFooter),
           receiptWidth: parsed.data.receiptWidth,
@@ -99,6 +101,7 @@ export async function PUT(request: Request) {
           taxMode: parsed.data.taxMode,
           taxRate: parsed.data.taxRate,
           defaultPaymentMethods: sanitizeDefaultPaymentMethods(parsed.data.defaultPaymentMethods),
+          cashDenominations: sanitizeCashDenominations(parsed.data.cashDenominations),
           receiptHeader: normalizeText(parsed.data.receiptHeader),
           receiptFooter: normalizeText(parsed.data.receiptFooter),
           receiptWidth: parsed.data.receiptWidth,

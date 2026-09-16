@@ -6,6 +6,7 @@ import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
 import Input from '@/components/ui/Input';
 import { PAYMENT_METHODS, type PaymentMethod } from '@/lib/payments';
+import { DEFAULT_ARGENTINA_DENOMINATIONS, type RegisterDenominationItem } from '@/lib/register';
 import {
   getPrinterConnectionLabel,
   getTaxModeLabel,
@@ -36,6 +37,7 @@ type Props = {
     receiptShowBrandMark: boolean;
     printerSafeMode: boolean;
     defaultPaymentMethods: PaymentMethod[];
+    cashDenominations: RegisterDenominationItem[];
     printerName: string;
     printerConnection: PrinterConnectionValue;
     cashDrawerKickEnabled: boolean;
@@ -74,6 +76,9 @@ function Section({ title, description, children }: { title: string; description:
 
 export default function SettingsForm({ initialValues }: Props) {
   const [form, setForm] = useState({ ...initialValues, taxRate: String(initialValues.taxRate) });
+  const [newDenomValue, setNewDenomValue] = useState('');
+  const [newDenomLabel, setNewDenomLabel] = useState('');
+  const [denomError, setDenomError] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -92,6 +97,55 @@ export default function SettingsForm({ initialValues }: Props) {
     });
   }
 
+  function handleAddDenomination() {
+    setDenomError('');
+    const val = Number(newDenomValue);
+    if (!Number.isFinite(val) || val <= 0) {
+      setDenomError('Ingrese un valor numérico mayor a cero.');
+      return;
+    }
+
+    const roundedVal = Math.round(val * 100) / 100;
+    if (form.cashDenominations.some((d) => d.value === roundedVal)) {
+      setDenomError(`La denominación ${form.currencySymbol} ${roundedVal.toLocaleString('es-AR')} ya está en la lista.`);
+      return;
+    }
+
+    const label =
+      newDenomLabel.trim() ||
+      (roundedVal >= 10
+        ? `Billete de $${roundedVal.toLocaleString('es-AR')}`
+        : `Moneda de $${roundedVal.toLocaleString('es-AR')}`);
+
+    const nextDenoms = [...form.cashDenominations, { value: roundedVal, label }].sort(
+      (a, b) => b.value - a.value
+    );
+
+    setForm((current) => ({ ...current, cashDenominations: nextDenoms }));
+    setNewDenomValue('');
+    setNewDenomLabel('');
+  }
+
+  function handleRemoveDenomination(val: number) {
+    setDenomError('');
+    if (form.cashDenominations.length <= 1) {
+      setDenomError('Debe mantener al menos una denominación para el conteo de caja.');
+      return;
+    }
+    setForm((current) => ({
+      ...current,
+      cashDenominations: current.cashDenominations.filter((d) => d.value !== val)
+    }));
+  }
+
+  function handleResetArgentinaDenominations() {
+    setDenomError('');
+    setForm((current) => ({
+      ...current,
+      cashDenominations: [...DEFAULT_ARGENTINA_DENOMINATIONS]
+    }));
+  }
+
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMessage('');
@@ -107,7 +161,8 @@ export default function SettingsForm({ initialValues }: Props) {
         lowStockThreshold: Number(form.lowStockThreshold),
         reorderSafetyStock: Number(form.reorderSafetyStock),
         offlineStockMaxAgeMinutes: Number(form.offlineStockMaxAgeMinutes),
-        openingFloatAmount: Number(form.openingFloatAmount)
+        openingFloatAmount: Number(form.openingFloatAmount),
+        cashDenominations: form.cashDenominations
       })
     });
 
@@ -286,6 +341,80 @@ export default function SettingsForm({ initialValues }: Props) {
               />
               Bloquear cobro sin conexión cuando el stock local esté desactualizado
             </label>
+          </div>
+        </div>
+      </Section>
+
+      <Section
+        title="Denominaciones de efectivo (Arqueo de caja)"
+        description="Configura los billetes y monedas que se utilizan para el conteo físico en el cierre de caja. Puedes agregar nuevas denominaciones o quitar las que tu negocio no maneje para agilizar el arqueo."
+      >
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
+                {form.cashDenominations.length} denominación(es) activa(s)
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={handleResetArgentinaDenominations}
+              className="rounded-full border border-stone-200 bg-white px-3.5 py-1.5 text-xs font-semibold text-stone-700 transition hover:border-stone-300 hover:bg-stone-50"
+            >
+              Restablecer a valores estándar de Argentina
+            </button>
+          </div>
+
+          <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+            {form.cashDenominations.map((denom) => (
+              <div
+                key={denom.value}
+                className="group relative flex items-center justify-between gap-2 rounded-2xl border border-stone-200 bg-stone-50/80 p-3 transition hover:border-stone-300 hover:bg-white"
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="text-base font-black text-stone-900">
+                    {form.currencySymbol} {denom.value.toLocaleString('es-AR')}
+                  </div>
+                  <div className="truncate text-xs text-stone-500">{denom.label}</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleRemoveDenomination(denom.value)}
+                  className="flex h-7 w-7 items-center justify-center rounded-full text-stone-400 transition hover:bg-red-50 hover:text-red-600"
+                  title={`Quitar denominación de $${denom.value.toLocaleString('es-AR')}`}
+                  aria-label={`Quitar denominación de $${denom.value.toLocaleString('es-AR')}`}
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
+          </div>
+
+          <div className="rounded-2xl border border-dashed border-stone-200 bg-stone-50/50 p-4">
+            <div className="text-xs font-bold uppercase tracking-wider text-stone-500">
+              Agregar nueva denominación
+            </div>
+            <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_1.5fr_auto]">
+              <Input
+                type="number"
+                min="0.01"
+                step="any"
+                placeholder="Valor (ej: 50000)"
+                value={newDenomValue}
+                onChange={(e) => setNewDenomValue(e.target.value)}
+              />
+              <Input
+                placeholder="Etiqueta opcional (ej: Billete de $50.000)"
+                value={newDenomLabel}
+                onChange={(e) => setNewDenomLabel(e.target.value)}
+              />
+              <Button type="button" variant="secondary" onClick={handleAddDenomination}>
+                + Agregar
+              </Button>
+            </div>
+            {denomError ? (
+              <p className="mt-2 text-xs font-semibold text-red-600">{denomError}</p>
+            ) : null}
           </div>
         </div>
       </Section>
