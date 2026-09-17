@@ -1,0 +1,56 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: fiambreria-costanera-db
+    restart: always
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-vertex_pos}
+      POSTGRES_USER: ${POSTGRES_USER:-posuser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-TuPasswordSeguro123}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-posuser} -d ${POSTGRES_DB:-vertex_pos}" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  web:
+    image: ghcr.io/santi-gs/fiambreria-main:latest
+    container_name: fiambreria-costanera-web
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-posuser}:${POSTGRES_PASSWORD:-TuPasswordSeguro123}@db:5432/${POSTGRES_DB:-vertex_pos}?schema=public
+      - AUTH_SECRET=${AUTH_SECRET:-vertex-pos-secret-cambiar-en-produccion-123456}
+      - AUTH_TRUST_HOST=true
+      - APP_URL=${APP_URL:-http://localhost:3000}
+      - PORT=3000
+      - MAX_PRODUCT_IMAGE_UPLOAD_MB=${MAX_PRODUCT_IMAGE_UPLOAD_MB:-5}
+    ports:
+      - "3000:3000"
+    command: sh -c "npx prisma migrate deploy && npm run start"
+
+  worker:
+    image: ghcr.io/santi-gs/fiambreria-main:latest
+    container_name: fiambreria-costanera-worker
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+      web:
+        condition: service_started
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-posuser}:${POSTGRES_PASSWORD:-TuPasswordSeguro123}@db:5432/${POSTGRES_DB:-vertex_pos}?schema=public
+    command: npm run worker
+
+volumes:
+  postgres_data:

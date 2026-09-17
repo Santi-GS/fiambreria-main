@@ -61,7 +61,7 @@ function getMailTransport() {
 
 function getMailFrom() {
   const address = getRequiredEnv('MAIL_FROM_ADDRESS');
-  const name = process.env.MAIL_FROM_NAME?.trim() || 'Vertex POS';
+  const name = process.env.MAIL_FROM_NAME?.trim() || 'Fiambrería Costanera POS';
   return `${name} <${address}>`;
 }
 
@@ -116,7 +116,7 @@ function escapeHtml(value: string) {
 }
 
 function getBrandName() {
-  return process.env.MAIL_BRAND_NAME?.trim() || 'Vertex POS';
+  return process.env.MAIL_BRAND_NAME?.trim() || 'Fiambrería Costanera POS';
 }
 
 function wrapEmailHtml({ preview, title, bodyHtml, ctaLabel, ctaUrl, footerHtml }: {

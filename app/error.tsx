@@ -12,7 +12,7 @@ export default function GlobalError({ error, reset }: { error: Error & { digest?
     <html lang="es">
       <body>
         <ErrorState
-          title="Vertex POS encontró un error inesperado"
+          title="Fiambrería Costanera POS encontró un error inesperado"
           message="No pudimos terminar de cargar esta página. Inténtalo de nuevo y vuelve al panel si el problema continúa."
           onReset={reset}
         />

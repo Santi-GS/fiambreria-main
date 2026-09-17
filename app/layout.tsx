@@ -7,8 +7,8 @@ const geistSans = Geist({ variable: '--font-geist-sans', subsets: ['latin'] });
 const geistMono = Geist_Mono({ variable: '--font-geist-mono', subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: { default: 'Vertex POS', template: '%s | Vertex POS' },
-  description: 'Sistema profesional de punto de venta, inventario, proveedores, reportes y gestión de tiendas.'
+  title: { default: 'Fiambrería Costanera POS', template: '%s | Fiambrería Costanera POS' },
+  description: 'Sistema profesional de punto de venta, inventario, proveedores, reportes y gestión para Fiambrería Costanera.'
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

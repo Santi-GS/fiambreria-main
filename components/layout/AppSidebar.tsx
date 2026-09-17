@@ -444,8 +444,8 @@ export default function AppSidebar({
       <div className="rounded-[32px] border border-white/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(255,255,255,0.84))] p-4 shadow-[0_24px_48px_-30px_rgba(28,25,23,0.36)] backdrop-blur">
         <div className="flex items-start justify-between gap-3">
           <div className={`min-w-0 ${isCollapsed ? 'w-full text-center' : ''}`}>
-            <div className={`inline-flex h-12 w-12 items-center justify-center rounded-[18px] bg-[linear-gradient(180deg,#111827,#0f172a)] text-base font-black text-white shadow-[0_18px_30px_-16px_rgba(15,23,42,0.7)] ${isCollapsed ? 'mx-auto' : ''}`}>
-              V
+            <div className={`inline-flex h-12 w-12 items-center justify-center rounded-[18px] bg-[linear-gradient(180deg,#111827,#0f172a)] text-sm font-black text-white shadow-[0_18px_30px_-16px_rgba(15,23,42,0.7)] ${isCollapsed ? 'mx-auto' : ''}`}>
+              FC
             </div>
             {!isCollapsed ? (
               <>

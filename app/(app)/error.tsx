@@ -11,7 +11,7 @@ export default function AppSegmentError({ error, reset }: { error: Error & { dig
   return (
     <ErrorState
       title="No se pudo cargar el espacio de trabajo"
-      message="Esta sección de Vertex POS no pudo cargarse correctamente. Inténtalo de nuevo o vuelve al panel para repetir la acción."
+      message="Esta sección de Fiambrería Costanera POS no pudo cargarse correctamente. Inténtalo de nuevo o vuelve al panel para repetir la acción."
       onReset={reset}
       homeHref="/dashboard"
       homeLabel="Volver al panel"

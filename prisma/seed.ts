@@ -22,7 +22,7 @@ import { DEFAULT_UNITS_OF_MEASURE } from '../lib/uom';
 const prisma = new PrismaClient();
 
 function createSeedImageDataUrl(label: string, accent: string) {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="640" viewBox="0 0 640 640"><rect width="640" height="640" fill="#f5f5f4"/><rect x="48" y="48" width="544" height="544" rx="42" fill="${accent}"/><text x="320" y="290" text-anchor="middle" font-family="Arial, sans-serif" font-size="44" font-weight="700" fill="#ffffff">${label}</text><text x="320" y="360" text-anchor="middle" font-family="Arial, sans-serif" font-size="22" fill="#fff7ed">Vertex POS Demo</text></svg>`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="640" viewBox="0 0 640 640"><rect width="640" height="640" fill="#f5f5f4"/><rect x="48" y="48" width="544" height="544" rx="42" fill="${accent}"/><text x="320" y="290" text-anchor="middle" font-family="Arial, sans-serif" font-size="44" font-weight="700" fill="#ffffff">${label}</text><text x="320" y="360" text-anchor="middle" font-family="Arial, sans-serif" font-size="22" fill="#fff7ed">Fiambrería Costanera POS Demo</text></svg>`;
   return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
 }
 
