@@ -1,6 +1,6 @@
 # Vertex-POS
 
-Vertex-POS is a modern point-of-sale and retail operations platform built for real store workflows, not just checkout demos. It combines sales, register operations, inventory control, purchasing, supplier management, customer history, loyalty, receivables, reporting, multi-branch readiness, and audit-aware staff controls in a single full-stack Next.js application.
+Vertex-POS is a modern point-of-sale and retail operations platform built for real store workflows, not just checkout demos. It combines sales, register operations, inventory control, purchasing, supplier management, customer history, receivables, reporting, multi-branch readiness, and audit-aware staff controls in a single full-stack Next.js application.
 
 ![Next.js](https://img.shields.io/badge/Next.js-16-black?style=for-the-badge&logo=next.js)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=for-the-badge&logo=typescript&logoColor=white)
@@ -12,7 +12,7 @@ Vertex-POS is a modern point-of-sale and retail operations platform built for re
 
 ## Project Description
 
-Vertex-POS is a business-ready POS and operations system for retail environments that need more than simple sales entry. The app supports day-to-day store execution across checkout, receipts, register open/close, inventory movements, product and catalog management, purchasing, supplier returns, customer management, loyalty and receivables, reporting, branch transfers, notifications, and staff/security controls.
+Vertex-POS is a business-ready POS and operations system for retail environments that need more than simple sales entry. The app supports day-to-day store execution across checkout, receipts, register open/close, inventory movements, product and catalog management, purchasing, supplier returns, customer management, receivables, reporting, branch transfers, notifications, and staff/security controls.
 
 The codebase is structured as a production-minded full-stack application with server-side authorization, Prisma-backed domain models, role and permission enforcement, operational audit trails, worker-driven notifications, and practical store setup flows.
 
@@ -86,7 +86,6 @@ The codebase is structured as a production-minded full-stack application with se
 - Customer directory for individual and business customers
 - Customer attachment to sales
 - Customer purchase history, last purchase date, total spend, and top customers
-- Loyalty ledger for points earned and redeemed
 - Customer credit sales, due dates, balances, receivable payments, and aging summaries
 
 ### Multi-branch / Shop Operations
@@ -129,7 +128,7 @@ Key app modules currently present in the repository:
 - `/stock-counts` - stock count creation, review, approval, and posting
 - `/suppliers` - supplier directory, invoices, balances, and supplier returns
 - `/purchases` - purchase orders, receiving, supplier invoices, and payments
-- `/customers` - customer directory, loyalty, credit balances, and receivable payments
+- `/customers` - customer directory, credit balances, and receivable payments
 - `/transfers` - branch transfer creation, dispatch, and receiving
 - `/reports` - sales, inventory, profit, and cashier reports
 - `/register/open`, `/register/close`, `/register/history` - cash drawer/session workflows, reconciliation, review, and reopen controls
@@ -178,7 +177,6 @@ The Prisma schema already models a fairly complete retail operations domain, inc
 - purchase orders, receipts, invoices, supplier payments, and accounts payable
 - supplier returns
 - stock transfers
-- loyalty ledgers
 - customer credit ledgers and receivable payments
 - notifications
 - activity logs

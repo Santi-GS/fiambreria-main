@@ -108,11 +108,6 @@ enum CustomerType {
   BUSINESS
 }
 
-enum CustomerLoyaltyLedgerType {
-  EARNED
-  REDEEMED
-  ADJUSTED
-}
 
 enum CustomerCreditStatus {
   OPEN
@@ -277,7 +272,6 @@ model Shop {
   saleAdjustments        SaleAdjustment[]
   stockCounts            StockCount[]
   parkedSales            ParkedSale[]
-  customerLoyaltyEntries CustomerLoyaltyLedger[]
   customerCreditLedgers  CustomerCreditLedger[]
   receivablePayments     ReceivablePayment[]
   suppliers              Supplier[]
@@ -364,7 +358,6 @@ model Customer {
   shop          Shop                    @relation(fields: [shopId], references: [id], onDelete: Cascade)
   sales         Sale[]
   parkedSales   ParkedSale[]
-  loyaltyLedger CustomerLoyaltyLedger[]
   creditLedgers CustomerCreditLedger[]
   createdAt     DateTime                @default(now())
   updatedAt     DateTime                @updatedAt
@@ -435,9 +428,6 @@ model Sale {
   changeDue               Decimal                 @default(0) @db.Decimal(12, 2)
   paymentMethod           String
   isCreditSale            Boolean                 @default(false)
-  loyaltyPointsEarned     Int                     @default(0)
-  loyaltyPointsRedeemed   Int                     @default(0)
-  loyaltyDiscountAmount   Decimal                 @default(0) @db.Decimal(12, 2)
   notes                   String?
   cashierName             String?
   voidReason              String?
@@ -446,7 +436,6 @@ model Sale {
   customer                Customer?               @relation(fields: [customerId], references: [id], onDelete: SetNull)
   items                   SaleItem[]
   payments                SalePayment[]
-  loyaltyLedgerEntries    CustomerLoyaltyLedger[]
   customerCreditLedger    CustomerCreditLedger?
   adjustments             SaleAdjustment[]        @relation("SourceSaleAdjustments")
   exchangeFromAdjustments SaleAdjustment[]        @relation("ExchangeSaleAdjustments")
@@ -1048,23 +1037,6 @@ model StockTransferItem {
   @@index([toProductId])
 }
 
-model CustomerLoyaltyLedger {
-  id           String                    @id @default(cuid())
-  shopId       String
-  customerId   String
-  saleId       String?
-  type         CustomerLoyaltyLedgerType
-  points       Int
-  balanceAfter Int
-  note         String?
-  shop         Shop                      @relation(fields: [shopId], references: [id], onDelete: Cascade)
-  customer     Customer                  @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  sale         Sale?                     @relation(fields: [saleId], references: [id], onDelete: SetNull)
-  createdAt    DateTime                  @default(now())
-
-  @@index([shopId, customerId, createdAt])
-  @@index([saleId])
-}
 
 model CustomerCreditLedger {
   id             String               @id @default(cuid())

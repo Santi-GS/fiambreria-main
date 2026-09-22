@@ -269,7 +269,6 @@ export const saleSchema = z.object({
   customerId: z.string().trim().optional().nullable(),
   customerName: z.string().trim().max(120).optional().nullable(),
   customerPhone: z.string().trim().max(40).optional().nullable(),
-  loyaltyPointsToRedeem: z.coerce.number().int().min(0).max(999999).default(0),
   isCreditSale: z.coerce.boolean().default(false),
   creditDueDate: z.string().trim().optional().nullable().or(z.literal('')),
   discountAmount: z.coerce.number().min(0).default(0),
@@ -308,13 +307,6 @@ export const saleSchema = z.object({
     }
   }
 
-  if (input.loyaltyPointsToRedeem > 0 && !input.customerId?.trim()) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ['customerId'],
-      message: 'Attach a customer before redeeming loyalty points.'
-    });
-  }
 });
 
 const approvalSchema = z.object({

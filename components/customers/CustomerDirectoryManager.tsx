@@ -9,13 +9,11 @@ import Input from '@/components/ui/Input';
 import { dateTime, money, shortDate } from '@/lib/format';
 import {
   bucketReceivableAmount,
-  calculateCustomerLoyaltyBalance,
   createAgingBucketTotals,
   customerCreditStatusTone,
   customerTypeTone,
   getCustomerCreditStatusLabel,
   getCustomerDisplayName,
-  getCustomerLoyaltyTypeLabel,
   getCustomerTypeLabel,
   normalizeCustomerCreditStatus
 } from '@/lib/customers';
@@ -30,14 +28,6 @@ type CustomerSale = {
   createdAt: string;
 };
 
-type LoyaltyEntry = {
-  id: string;
-  type: string;
-  points: number;
-  balanceAfter: number;
-  note: string | null;
-  createdAt: string;
-};
 
 type ReceivablePayment = {
   id: string;
@@ -87,7 +77,6 @@ export type CustomerRecord = {
   createdAt: string;
   updatedAt: string;
   sales: CustomerSale[];
-  loyaltyLedger: LoyaltyEntry[];
   creditLedgers: CreditLedger[];
 };
 
@@ -177,8 +166,6 @@ function getCustomerStats(customer: CustomerRecord) {
     purchaseCount: customer.sales.length,
     lastPurchaseAt: customer.sales[0]?.createdAt ?? null,
     totalSpend: customer.sales.reduce((sum, sale) => sum + Number(sale.totalAmount), 0),
-    loyaltyBalance:
-      customer.loyaltyLedger[0]?.balanceAfter ?? calculateCustomerLoyaltyBalance(customer.loyaltyLedger),
     receivableBalance: customer.creditLedgers.reduce((sum, ledger) => sum + Number(ledger.balance), 0)
   };
 }
@@ -422,9 +409,8 @@ export default function CustomerDirectoryManager({
                       </div>
                       <div className="mt-1 text-sm text-stone-500">{customer.phone || 'Sin teléfono'}{customer.email ? ` / ${customer.email}` : ''}</div>
                     </div>
-                    <div className="grid grid-cols-2 gap-3 text-sm lg:min-w-[280px]">
+                    <div className="grid grid-cols-3 gap-3 text-sm lg:min-w-[320px]">
                       <div><div className="text-xs uppercase tracking-[0.14em] text-stone-400">Gasto total</div><div className="font-semibold text-stone-900">{money(stats.totalSpend, currencySymbol)}</div></div>
-                      <div><div className="text-xs uppercase tracking-[0.14em] text-stone-400">Puntos</div><div className="font-semibold text-stone-900">{stats.loyaltyBalance}</div></div>
                       <div><div className="text-xs uppercase tracking-[0.14em] text-stone-400">Última compra</div><div className="font-semibold text-stone-900">{stats.lastPurchaseAt ? shortDate(stats.lastPurchaseAt) : 'Sin ventas aún'}</div></div>
                       <div><div className="text-xs uppercase tracking-[0.14em] text-stone-400">Por cobrar</div><div className="font-semibold text-stone-900">{money(stats.receivableBalance, currencySymbol)}</div></div>
                     </div>
@@ -463,47 +449,7 @@ export default function CustomerDirectoryManager({
             </div>
           </div>
 
-          <div className="grid gap-6 xl:grid-cols-3">
-            <div>
-              <div className="mb-3 text-sm font-semibold text-stone-900">Ventas recientes</div>
-              <div className="space-y-3">
-                {selectedCustomer.sales.length ? selectedCustomer.sales.slice(0, 12).map((sale) => (
-                  <div key={sale.id} className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <div className="font-semibold text-stone-900">{sale.saleNumber}</div>
-                        <div className="text-xs text-stone-500">{dateTime(sale.createdAt)}</div>
-                      </div>
-                      <div className="text-right">
-                        <div className="font-semibold text-stone-900">{money(sale.totalAmount, currencySymbol)}</div>
-                        {sale.isCreditSale ? <Badge tone="amber">Crédito</Badge> : null}
-                      </div>
-                    </div>
-                  </div>
-                )) : <div className="rounded-2xl border border-dashed border-stone-300 bg-stone-50 px-4 py-6 text-sm text-stone-500">No hay ventas completadas aún.</div>}
-              </div>
-            </div>
-
-            <div>
-              <div className="mb-3 text-sm font-semibold text-stone-900">Historial de fidelidad</div>
-              <div className="space-y-3">
-                {selectedCustomer.loyaltyLedger.length ? selectedCustomer.loyaltyLedger.slice(0, 16).map((entry) => (
-                  <div key={entry.id} className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <div className="font-semibold text-stone-900">{getCustomerLoyaltyTypeLabel(entry.type)}</div>
-                        <div className="text-xs text-stone-500">{dateTime(entry.createdAt)}</div>
-                      </div>
-                      <div className="text-right">
-                        <div className="font-semibold text-stone-900">{entry.type === 'REDEEMED' ? '-' : '+'}{entry.points} pts</div>
-                        <div className="text-xs text-stone-500">Saldo {entry.balanceAfter}</div>
-                      </div>
-                    </div>
-                    {entry.note ? <div className="mt-2 text-sm text-stone-600">{entry.note}</div> : null}
-                  </div>
-                )) : <div className="rounded-2xl border border-dashed border-stone-300 bg-stone-50 px-4 py-6 text-sm text-stone-500">No hay actividad de fidelidad registrada.</div>}
-              </div>
-            </div>
+          <div className="grid gap-6 xl:grid-cols-2">
 
             <div>
               <div className="mb-3 text-sm font-semibold text-stone-900">Cuentas por cobrar</div>

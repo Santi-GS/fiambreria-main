@@ -33,7 +33,6 @@ export type Customer = {
   contactPerson: string | null;
   phone: string | null;
   email: string | null;
-  loyaltyBalance: number;
   receivableBalance: string;
   lastPurchaseAt: string | null;
 };

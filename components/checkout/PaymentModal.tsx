@@ -21,9 +21,6 @@ type PaymentModalProps = {
   manualDiscount: number;
   discountAmount: string;
   onDiscountAmountChange: (value: string) => void;
-  loyaltyDiscount: number;
-  loyaltyPointsToRedeem: string;
-  onLoyaltyPointsChange: (value: string) => void;
   total: number;
   payments: PaymentLine[];
   onUpdatePaymentLine: (id: string, updates: Partial<PaymentLine>) => void;
@@ -63,9 +60,6 @@ export default function PaymentModal({
   manualDiscount,
   discountAmount,
   onDiscountAmountChange,
-  loyaltyDiscount,
-  loyaltyPointsToRedeem,
-  onLoyaltyPointsChange,
   total,
   payments,
   onUpdatePaymentLine,
@@ -171,12 +165,6 @@ export default function PaymentModal({
                 <div className="flex justify-between font-bold text-emerald-700">
                   <span>Descuento</span>
                   <span>-{money(manualDiscount, currencySymbol)}</span>
-                </div>
-              ) : null}
-              {loyaltyDiscount > 0 ? (
-                <div className="flex justify-between font-bold text-sky-700">
-                  <span>Puntos de fidelidad</span>
-                  <span>-{money(loyaltyDiscount, currencySymbol)}</span>
                 </div>
               ) : null}
               <div className="flex justify-between border-t border-stone-200 pt-1.5 text-base font-black text-stone-900">
@@ -368,8 +356,8 @@ export default function PaymentModal({
             )}
           </div>
 
-          {/* Discounts, Points and Notes Section */}
-          <div className="grid gap-3 sm:grid-cols-3">
+          {/* Discounts and Notes Section */}
+          <div className="grid gap-3 sm:grid-cols-2">
             <div>
               <label className="block text-[11px] font-bold text-stone-500 uppercase mb-1">
                 Descuento Manual ($)
@@ -381,21 +369,6 @@ export default function PaymentModal({
                 placeholder="0.00"
                 value={discountAmount}
                 onChange={(e) => onDiscountAmountChange(e.target.value)}
-                className="h-10 text-xs font-semibold"
-              />
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-bold text-stone-500 uppercase mb-1">
-                Canjear Puntos ({selectedCustomer?.loyaltyBalance ?? 0} disp.)
-              </label>
-              <Input
-                type="number"
-                min="0"
-                max={selectedCustomer?.loyaltyBalance ?? 0}
-                placeholder="0"
-                value={loyaltyPointsToRedeem}
-                onChange={(e) => onLoyaltyPointsChange(e.target.value)}
                 className="h-10 text-xs font-semibold"
               />
             </div>

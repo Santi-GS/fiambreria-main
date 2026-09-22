@@ -2,7 +2,6 @@ import {
   PayableStatus,
   CashSessionStatus,
   CustomerCreditStatus,
-  CustomerLoyaltyLedgerType,
   CustomerType,
   DocumentSequenceType,
   PrismaClient,
@@ -299,7 +298,7 @@ async function main() {
       phone: '09171230001',
       email: 'anna.reyes@demo.local',
       address: 'Mandaluyong City',
-      notes: 'Regular retail customer who actively uses loyalty rewards.'
+      notes: 'Regular retail customer.'
     }
   });
 
@@ -749,10 +748,7 @@ async function main() {
       changeDue: 0,
       paymentMethod: 'Cash',
       isCreditSale: false,
-      loyaltyPointsEarned: 5,
-      loyaltyPointsRedeemed: 0,
-      loyaltyDiscountAmount: 0,
-      notes: 'Seed customer sale with loyalty earn.',
+      notes: 'Seed customer sale.',
       cashierName: cashier.name,
       items: {
         create: [
@@ -783,17 +779,6 @@ async function main() {
     }
   });
 
-  await prisma.customerLoyaltyLedger.create({
-    data: {
-      shopId: shop.id,
-      customerId: annaCustomer.id,
-      saleId: annaFirstSale.id,
-      type: CustomerLoyaltyLedgerType.EARNED,
-      points: 5,
-      balanceAfter: 5,
-      note: `Earned from sale ${annaFirstSale.saleNumber}.`
-    }
-  });
 
   await prisma.product.update({
     where: { id: products[2].id },
@@ -849,10 +834,7 @@ async function main() {
       changeDue: 0,
       paymentMethod: 'Card',
       isCreditSale: false,
-      loyaltyPointsEarned: 2,
-      loyaltyPointsRedeemed: 3,
-      loyaltyDiscountAmount: 3,
-      notes: 'Seed customer sale with loyalty redemption.',
+      notes: 'Seed customer sale with discount.',
       cashierName: cashier.name,
       items: {
         create: [
@@ -884,29 +866,6 @@ async function main() {
     }
   });
 
-  await prisma.customerLoyaltyLedger.create({
-    data: {
-      shopId: shop.id,
-      customerId: annaCustomer.id,
-      saleId: annaSecondSale.id,
-      type: CustomerLoyaltyLedgerType.REDEEMED,
-      points: 3,
-      balanceAfter: 2,
-      note: `Redeemed on sale ${annaSecondSale.saleNumber}.`
-    }
-  });
-
-  await prisma.customerLoyaltyLedger.create({
-    data: {
-      shopId: shop.id,
-      customerId: annaCustomer.id,
-      saleId: annaSecondSale.id,
-      type: CustomerLoyaltyLedgerType.EARNED,
-      points: 2,
-      balanceAfter: 4,
-      note: `Earned from sale ${annaSecondSale.saleNumber}.`
-    }
-  });
 
   await prisma.product.update({
     where: { id: products[0].id },
@@ -923,7 +882,7 @@ async function main() {
       qtyChange: -2,
       referenceId: annaSecondSale.id,
       userId: cashier.id,
-      notes: 'Seed loyalty redemption sale'
+      notes: 'Seed sale completed'
     }
   });
 
@@ -942,7 +901,7 @@ async function main() {
       qtyChange: -1,
       referenceId: annaSecondSale.id,
       userId: cashier.id,
-      notes: 'Seed loyalty redemption sale'
+      notes: 'Seed sale completed'
     }
   });
 
@@ -962,9 +921,6 @@ async function main() {
       changeDue: 0,
       paymentMethod: 'Customer Credit',
       isCreditSale: true,
-      loyaltyPointsEarned: 10,
-      loyaltyPointsRedeemed: 0,
-      loyaltyDiscountAmount: 0,
       notes: 'Seed credit sale for business customer.',
       cashierName: manager.name,
       items: {
@@ -988,17 +944,6 @@ async function main() {
     }
   });
 
-  await prisma.customerLoyaltyLedger.create({
-    data: {
-      shopId: shop.id,
-      customerId: businessCustomer.id,
-      saleId: businessCreditSale.id,
-      type: CustomerLoyaltyLedgerType.EARNED,
-      points: 10,
-      balanceAfter: 10,
-      note: `Earned from sale ${businessCreditSale.saleNumber}.`
-    }
-  });
 
   const businessReceivable = await prisma.customerCreditLedger.create({
     data: {

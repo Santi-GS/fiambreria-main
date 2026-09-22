@@ -34,9 +34,6 @@ export type OfflineReceiptSale = {
   customerPhone: string | null;
   isCreditSale: boolean;
   creditDueDate: string | null;
-  loyaltyPointsEarned: number;
-  loyaltyPointsRedeemed: number;
-  loyaltyDiscountAmount: string;
   subtotal: string;
   taxAmount: string;
   discountAmount: string;
@@ -73,7 +70,6 @@ export type OfflineQueuedSalePayload = {
   customerId: string | null;
   customerName: string | null;
   customerPhone: string | null;
-  loyaltyPointsToRedeem: number;
   isCreditSale: boolean;
   creditDueDate: string | null;
   discountAmount: number;
@@ -113,7 +109,6 @@ export type OfflineCheckoutDraft = {
   selectedCustomerId: string | null;
   customerName: string;
   customerPhone: string;
-  loyaltyPointsToRedeem: string;
   isCreditSale: boolean;
   creditDueDate: string;
   notes: string;

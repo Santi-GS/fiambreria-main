@@ -2,7 +2,6 @@ import { notFound } from 'next/navigation';
 import CustomerStatementPrintButton from '@/components/customers/CustomerStatementPrintButton';
 import { customerDetailInclude } from '@/lib/customer-operations';
 import {
-  calculateCustomerLoyaltyBalance,
   customerCreditStatusTone,
   getCustomerCreditStatusLabel,
   getCustomerDisplayName,
@@ -54,8 +53,6 @@ export default async function PrintCustomerStatementPage({
 
   const currencySymbol = settings?.currencySymbol ?? 'PHP ';
   const displayName = getCustomerDisplayName(customer);
-  const loyaltyBalance =
-    customer.loyaltyLedger[0]?.balanceAfter ?? calculateCustomerLoyaltyBalance(customer.loyaltyLedger);
   const receivables = openOnly
     ? customer.creditLedgers.filter((ledger) => Number(ledger.balance) > 0)
     : customer.creditLedgers;
@@ -74,7 +71,7 @@ export default async function PrintCustomerStatementPage({
             <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-emerald-700">Estado de cuenta del cliente</div>
             <h1 className="mt-2 text-3xl font-black text-stone-950">{displayName}</h1>
             <p className="mt-2 text-sm text-stone-500">
-              Consulta ventas recientes, saldo de lealtad y {openOnly ? 'solo cuentas por cobrar abiertas' : 'el historial completo de cuentas por cobrar'}.
+              Consulta ventas recientes y {openOnly ? 'solo cuentas por cobrar abiertas' : 'el historial completo de cuentas por cobrar'}.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -102,7 +99,7 @@ export default async function PrintCustomerStatementPage({
           </div>
         </div>
 
-        <div className="grid gap-4 border-b border-stone-200 py-6 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-4 border-b border-stone-200 py-6 md:grid-cols-3">
           <div className="rounded-[24px] border border-stone-200 bg-stone-50 p-4">
             <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-stone-400">Ventas totales</div>
             <div className="mt-2 text-2xl font-black text-stone-950">{money(totalSales, currencySymbol)}</div>
@@ -117,11 +114,6 @@ export default async function PrintCustomerStatementPage({
             <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-stone-400">Pagos registrados</div>
             <div className="mt-2 text-2xl font-black text-emerald-700">{money(totalReceivablePayments, currencySymbol)}</div>
             <div className="mt-1 text-xs text-stone-500">Cobros de cuentas por cobrar a la fecha</div>
-          </div>
-          <div className="rounded-[24px] border border-stone-200 bg-stone-50 p-4">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-stone-400">Saldo de lealtad</div>
-            <div className="mt-2 text-2xl font-black text-stone-950">{loyaltyBalance}</div>
-            <div className="mt-1 text-xs text-stone-500">Puntos disponibles</div>
           </div>
         </div>
 

@@ -74,7 +74,7 @@ function CustomerSearchDialog({
             </div>
             <div>
               <h3 className="text-lg font-black text-stone-900">Buscar o Asignar Cliente</h3>
-              <p className="text-xs text-stone-500">Asigne un cliente para acumular puntos o ventas en cuenta corriente</p>
+              <p className="text-xs text-stone-500">Asigne un cliente para ventas en cuenta corriente o identificación en ticket</p>
             </div>
           </div>
           <button
@@ -144,14 +144,13 @@ function CustomerSearchDialog({
                     </div>
                   </div>
 
-                  <div className="text-right text-xs space-y-0.5">
-                    <div className="font-bold text-sky-700">Puntos: {customer.loyaltyBalance}</div>
-                    {hasReceivable ? (
+                  {hasReceivable ? (
+                    <div className="text-right text-xs">
                       <div className="font-bold text-red-600">
                         Deuda: {money(customer.receivableBalance, currencySymbol)}
                       </div>
-                    ) : null}
-                  </div>
+                    </div>
+                  ) : null}
                 </button>
               );
             })

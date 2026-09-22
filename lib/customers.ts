@@ -3,15 +3,10 @@ import { roundCurrency } from '@/lib/inventory';
 type DecimalLike = { toString(): string };
 
 export const CUSTOMER_TYPE_OPTIONS = ['INDIVIDUAL', 'BUSINESS'] as const;
-export const CUSTOMER_LOYALTY_LEDGER_TYPE_OPTIONS = ['EARNED', 'REDEEMED', 'ADJUSTED'] as const;
 export const CUSTOMER_CREDIT_STATUS_OPTIONS = ['OPEN', 'PARTIALLY_PAID', 'PAID', 'OVERDUE', 'VOIDED'] as const;
 export const AGING_BUCKET_KEYS = ['current', 'days_1_30', 'days_31_60', 'days_61_plus'] as const;
 
-export const LOYALTY_EARN_SPEND_STEP = 100;
-export const LOYALTY_POINT_VALUE = 1;
-
 export type CustomerTypeValue = (typeof CUSTOMER_TYPE_OPTIONS)[number];
-export type CustomerLoyaltyLedgerTypeValue = (typeof CUSTOMER_LOYALTY_LEDGER_TYPE_OPTIONS)[number];
 export type CustomerCreditStatusValue = (typeof CUSTOMER_CREDIT_STATUS_OPTIONS)[number];
 export type CustomerTone = 'stone' | 'emerald' | 'amber' | 'red' | 'blue';
 export type AgingBucketKey = (typeof AGING_BUCKET_KEYS)[number];
@@ -21,11 +16,6 @@ const CUSTOMER_TYPE_LABELS: Record<CustomerTypeValue, string> = {
   BUSINESS: 'Empresa'
 };
 
-const CUSTOMER_LOYALTY_TYPE_LABELS: Record<CustomerLoyaltyLedgerTypeValue, string> = {
-  EARNED: 'Ganados',
-  REDEEMED: 'Canjeados',
-  ADJUSTED: 'Ajustados'
-};
 
 const CUSTOMER_CREDIT_STATUS_LABELS: Record<CustomerCreditStatusValue, string> = {
   OPEN: 'Abierto',
@@ -39,9 +29,6 @@ export function getCustomerTypeLabel(type: CustomerTypeValue | string) {
   return CUSTOMER_TYPE_LABELS[type as CustomerTypeValue] ?? String(type).replaceAll('_', ' ');
 }
 
-export function getCustomerLoyaltyTypeLabel(type: CustomerLoyaltyLedgerTypeValue | string) {
-  return CUSTOMER_LOYALTY_TYPE_LABELS[type as CustomerLoyaltyLedgerTypeValue] ?? String(type).replaceAll('_', ' ');
-}
 
 export function getCustomerCreditStatusLabel(status: CustomerCreditStatusValue | string) {
   return CUSTOMER_CREDIT_STATUS_LABELS[status as CustomerCreditStatusValue] ?? String(status).replaceAll('_', ' ');
@@ -95,25 +82,6 @@ export function getCustomerDisplayName(customer: {
   return customer.phone?.trim() || customer.email?.trim() || 'Cliente sin nombre';
 }
 
-export function calculatePointsEarned(netSaleAmount: number) {
-  return Math.max(Math.floor(Math.max(netSaleAmount, 0) / LOYALTY_EARN_SPEND_STEP), 0);
-}
-
-export function calculateLoyaltyDiscount(pointsToRedeem: number) {
-  return roundCurrency(Math.max(pointsToRedeem, 0) * LOYALTY_POINT_VALUE);
-}
-
-export function calculateCustomerLoyaltyBalance(
-  entries: Array<{ type: string; points: number }>
-) {
-  return entries.reduce((sum, entry) => {
-    if (entry.type === 'REDEEMED') {
-      return sum - entry.points;
-    }
-
-    return sum + entry.points;
-  }, 0);
-}
 
 export function normalizeCustomerCreditStatus(
   status: CustomerCreditStatusValue | string,
@@ -240,27 +208,6 @@ export function serializeCustomerCreditLedger<
   };
 }
 
-export function serializeCustomerLoyaltyLedger<
-  T extends {
-    createdAt: Date;
-    sale?: {
-      totalAmount: DecimalLike;
-      createdAt: Date;
-    } | null;
-  }
->(entry: T) {
-  return {
-    ...entry,
-    createdAt: entry.createdAt.toISOString(),
-    sale: entry.sale
-      ? {
-          ...entry.sale,
-          totalAmount: serializeDecimal(entry.sale.totalAmount),
-          createdAt: entry.sale.createdAt.toISOString()
-        }
-      : entry.sale
-  };
-}
 
 export function serializeCustomer<
   T extends {
@@ -269,13 +216,6 @@ export function serializeCustomer<
     sales?: Array<{
       totalAmount: DecimalLike;
       createdAt: Date;
-    }>;
-    loyaltyLedger?: Array<{
-      createdAt: Date;
-      sale?: {
-        totalAmount: DecimalLike;
-        createdAt: Date;
-      } | null;
     }>;
     creditLedgers?: Array<{
       originalAmount: DecimalLike;
@@ -304,7 +244,6 @@ export function serializeCustomer<
       totalAmount: serializeDecimal(sale.totalAmount),
       createdAt: sale.createdAt.toISOString()
     })),
-    loyaltyLedger: customer.loyaltyLedger?.map(serializeCustomerLoyaltyLedger),
     creditLedgers: customer.creditLedgers?.map(serializeCustomerCreditLedger)
   };
 }

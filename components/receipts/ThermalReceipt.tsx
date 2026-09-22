@@ -35,9 +35,6 @@ type ReceiptSale = {
   customerPhone: string | null;
   isCreditSale: boolean;
   creditDueDate: string | null;
-  loyaltyPointsEarned: number;
-  loyaltyPointsRedeemed: number;
-  loyaltyDiscountAmount: string;
   subtotal: string;
   taxAmount: string;
   discountAmount: string;
@@ -416,39 +413,12 @@ export default function ThermalReceipt({
             <span>Descuento</span>
             <span>-{money(sale.discountAmount, currencySymbol)}</span>
           </div>
-          {Number(sale.loyaltyDiscountAmount) > 0 ? (
-            <div className="flex justify-between">
-              <span>Descuento por fidelidad</span>
-              <span>-{money(sale.loyaltyDiscountAmount, currencySymbol)}</span>
-            </div>
-          ) : null}
           <div className="flex justify-between pt-2 text-sm font-black text-stone-900">
             <span>Total</span>
             <span>{money(sale.totalAmount, currencySymbol)}</span>
           </div>
         </div>
 
-        {sale.loyaltyPointsEarned > 0 || sale.loyaltyPointsRedeemed > 0 ? (
-          <div
-            className={`space-y-1 border-b border-dashed border-stone-300 py-4 ${
-              compact ? 'text-[10px]' : 'text-[11px]'
-            } text-stone-700`}
-          >
-            <div className="font-semibold text-stone-900">Puntos de fidelidad</div>
-            {sale.loyaltyPointsEarned > 0 ? (
-              <div className="flex justify-between">
-                <span>Puntos ganados</span>
-                <span>{sale.loyaltyPointsEarned}</span>
-              </div>
-            ) : null}
-            {sale.loyaltyPointsRedeemed > 0 ? (
-              <div className="flex justify-between">
-                <span>Puntos canjeados</span>
-                <span>{sale.loyaltyPointsRedeemed}</span>
-              </div>
-            ) : null}
-          </div>
-        ) : null}
 
         <div
           className={`space-y-2 border-b border-dashed border-stone-300 py-4 ${

@@ -34,19 +34,6 @@ export const customerDetailInclude = {
     },
     orderBy: [{ createdAt: 'desc' }]
   },
-  loyaltyLedger: {
-    include: {
-      sale: {
-        select: {
-          id: true,
-          saleNumber: true,
-          totalAmount: true,
-          createdAt: true
-        }
-      }
-    },
-    orderBy: [{ createdAt: 'desc' }]
-  },
   creditLedgers: {
     include: {
       sale: {
@@ -92,14 +79,6 @@ export async function getCustomerDetailOrThrow(db: DbClient, customerId: string,
   return customer;
 }
 
-export async function getCustomerLoyaltyBalance(db: DbClient, customerId: string) {
-  const latestEntry = await db.customerLoyaltyLedger.findFirst({
-    where: { customerId },
-    orderBy: [{ createdAt: 'desc' }]
-  });
-
-  return latestEntry?.balanceAfter ?? 0;
-}
 
 export async function recordReceivablePayment({
   tx,

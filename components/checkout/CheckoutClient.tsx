@@ -89,7 +89,6 @@ function hasMeaningfulDraft(input: OfflineCheckoutDraft) {
     input.customerSearch.trim().length > 0 ||
     input.selectedCustomerId !== null ||
     Number(input.discountAmount || 0) > 0 ||
-    Number(input.loyaltyPointsToRedeem || 0) > 0 ||
     input.isCreditSale ||
     input.payments.some((payment) => payment.amount.trim().length > 0 || payment.referenceNumber.trim().length > 0)
   );
@@ -120,7 +119,6 @@ function buildInitialCheckoutPersistenceState({
     selectedCustomerId: null as string | null,
     customerName: '',
     customerPhone: '',
-    loyaltyPointsToRedeem: '0',
     isCreditSale: false,
     creditDueDate: toDateInputValue(),
     notes: '',
@@ -167,7 +165,6 @@ function buildInitialCheckoutPersistenceState({
   restored.selectedCustomerId = draft.selectedCustomerId;
   restored.customerName = draft.customerName;
   restored.customerPhone = draft.customerPhone;
-  restored.loyaltyPointsToRedeem = draft.loyaltyPointsToRedeem;
   restored.isCreditSale = draft.isCreditSale;
   restored.creditDueDate = draft.creditDueDate || toDateInputValue();
   restored.notes = draft.notes;
@@ -291,7 +288,6 @@ export default function CheckoutClient({
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
-  const [loyaltyPointsToRedeem, setLoyaltyPointsToRedeem] = useState('0');
   const [isCreditSale, setIsCreditSale] = useState(false);
   const [creditDueDate, setCreditDueDate] = useState(() => toDateInputValue());
   const [notes, setNotes] = useState('');
@@ -343,7 +339,6 @@ export default function CheckoutClient({
       setSelectedCustomerId(restored.selectedCustomerId);
       setCustomerName(restored.customerName);
       setCustomerPhone(restored.customerPhone);
-      setLoyaltyPointsToRedeem(restored.loyaltyPointsToRedeem);
       setIsCreditSale(restored.isCreditSale);
       setCreditDueDate(restored.creditDueDate);
       setNotes(restored.notes);
@@ -371,7 +366,6 @@ export default function CheckoutClient({
       selectedCustomerId,
       customerName,
       customerPhone,
-      loyaltyPointsToRedeem,
       isCreditSale,
       creditDueDate,
       notes,
@@ -396,7 +390,6 @@ export default function CheckoutClient({
     selectedCustomerId,
     customerName,
     customerPhone,
-    loyaltyPointsToRedeem,
     isCreditSale,
     creditDueDate,
     notes,
@@ -413,9 +406,7 @@ export default function CheckoutClient({
   const rawSubtotal = cart.reduce((sum, item) => sum + Number(item.price) * item.qty, 0);
   const subtotal = roundCurrency(rawSubtotal);
   const manualDiscount = Math.min(Math.max(toNumber(discountAmount), 0), subtotal);
-  const loyaltyPointsCount = Math.max(Math.floor(toNumber(loyaltyPointsToRedeem)), 0);
-  const loyaltyDiscount = Math.min(loyaltyPointsCount * 1, Math.max(subtotal - manualDiscount, 0));
-  const discount = roundCurrency(manualDiscount + loyaltyDiscount);
+  const discount = roundCurrency(manualDiscount);
   const taxBreakdown = calculateTaxBreakdown({
     subtotal,
     discountAmount: discount,
@@ -547,7 +538,6 @@ export default function CheckoutClient({
     setSelectedCustomerId(null);
     setCustomerName('');
     setCustomerPhone('');
-    setLoyaltyPointsToRedeem('0');
     setIsCreditSale(false);
     setCreditDueDate(toDateInputValue());
     setNotes('');
@@ -755,7 +745,6 @@ export default function CheckoutClient({
       paymentMethod: isCreditSale ? 'Credit' : payments[0]?.method ?? 'Cash',
       isCreditSale,
       creditDueDate: isCreditSale ? creditDueDate : null,
-      loyaltyPointsRedeemed: loyaltyPointsCount,
       notes: notes || null,
       items: cart.map((item) => ({
         productId: item.productId,
@@ -790,7 +779,6 @@ export default function CheckoutClient({
           customerId: selectedCustomerId,
           customerName: customerName || (selectedCustomer ? getCustomerDisplayName(selectedCustomer) : null),
           customerPhone: customerPhone || selectedCustomer?.phone || null,
-          loyaltyPointsToRedeem: loyaltyPointsCount,
           isCreditSale,
           creditDueDate: isCreditSale ? creditDueDate : null,
           discountAmount: discount,
@@ -824,9 +812,6 @@ export default function CheckoutClient({
           customerEmail: selectedCustomer?.email ?? null,
           isCreditSale,
           creditDueDate: isCreditSale ? creditDueDate : null,
-          loyaltyPointsEarned: 0,
-          loyaltyPointsRedeemed: loyaltyPointsCount,
-          loyaltyDiscountAmount: loyaltyDiscount.toFixed(2),
           subtotal: subtotal.toFixed(2),
           taxAmount: taxAmount.toFixed(2),
           discountAmount: discount.toFixed(2),
@@ -1130,9 +1115,6 @@ export default function CheckoutClient({
         manualDiscount={manualDiscount}
         discountAmount={discountAmount}
         onDiscountAmountChange={setDiscountAmount}
-        loyaltyDiscount={loyaltyDiscount}
-        loyaltyPointsToRedeem={loyaltyPointsToRedeem}
-        onLoyaltyPointsChange={setLoyaltyPointsToRedeem}
         total={total}
         payments={payments}
         onUpdatePaymentLine={updatePaymentLine}

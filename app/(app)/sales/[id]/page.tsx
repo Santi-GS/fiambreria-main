@@ -107,11 +107,6 @@ export default async function SaleDetailPage({
             <div>Notas: <span className="font-semibold text-stone-900">{sale.notes ?? 'N/D'}</span></div>
             <div>Estado: <span className="font-semibold text-stone-900">{getSaleStatusLabel(sale.status)}</span></div>
             <div>Venta a crédito: <span className="font-semibold text-stone-900">{sale.isCreditSale ? 'Sí' : 'No'}</span></div>
-            {sale.loyaltyPointsEarned > 0 || sale.loyaltyPointsRedeemed > 0 ? (
-              <div>
-                Lealtad: <span className="font-semibold text-stone-900">+{sale.loyaltyPointsEarned} ganados / -{sale.loyaltyPointsRedeemed} canjeados</span>
-              </div>
-            ) : null}
             {sale.customerCreditLedger ? (
               <>
                 <div>Fecha de vencimiento: <span className="font-semibold text-stone-900">{dateTime(sale.customerCreditLedger.dueDate)}</span></div>

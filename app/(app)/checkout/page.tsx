@@ -38,7 +38,6 @@ type CheckoutCustomer = {
   contactPerson: string | null;
   phone: string | null;
   email: string | null;
-  loyaltyBalance: number;
   receivableBalance: string;
   lastPurchaseAt: string | null;
 };
@@ -89,13 +88,6 @@ export default async function CheckoutPage() {
         contactPerson: true,
         phone: true,
         email: true,
-        loyaltyLedger: {
-          select: {
-            balanceAfter: true
-          },
-          orderBy: [{ createdAt: 'desc' }],
-          take: 1
-        },
         creditLedgers: {
           where: {
             status: {
@@ -209,7 +201,6 @@ export default async function CheckoutPage() {
           contactPerson: customer.contactPerson,
           phone: customer.phone,
           email: customer.email,
-          loyaltyBalance: customer.loyaltyLedger[0]?.balanceAfter ?? 0,
           receivableBalance: customer.creditLedgers
             .reduce((sum, ledger) => sum + Number(ledger.balance.toString()), 0)
             .toString(),

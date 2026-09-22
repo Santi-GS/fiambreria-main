@@ -4,12 +4,7 @@ import { saleSchema } from '@/lib/auth/validation';
 import { requireRole } from '@/lib/authz';
 import { apiErrorResponse } from '@/lib/api';
 import { logActivity } from '@/lib/activity';
-import { getCustomerLoyaltyBalance } from '@/lib/customer-operations';
-import {
-  calculateLoyaltyDiscount,
-  calculatePointsEarned,
-  getCustomerDisplayName
-} from '@/lib/customers';
+import { getCustomerDisplayName } from '@/lib/customers';
 import { getNextDocumentNumber } from '@/lib/document-sequence';
 import { collapseSaleItems, normalizeText, roundCurrency } from '@/lib/inventory';
 import {
@@ -155,8 +150,6 @@ export async function POST(request: Request) {
     }));
     const isCreditSale = parsed.data.isCreditSale;
     const creditDueDate = parseOptionalDateInput(parsed.data.creditDueDate);
-    const loyaltyPointsToRedeem = parsed.data.loyaltyPointsToRedeem ?? 0;
-    const loyaltyDiscountAmount = calculateLoyaltyDiscount(loyaltyPointsToRedeem);
 
     if (isCreditSale && !creditDueDate) {
       return NextResponse.json(
@@ -328,7 +321,7 @@ export async function POST(request: Request) {
       saleLines.reduce((sum, line) => sum + line.lineTotal, 0)
     );
     const manualDiscountAmount = roundCurrency(Number(parsed.data.discountAmount ?? 0));
-    const discountAmount = roundCurrency(manualDiscountAmount + loyaltyDiscountAmount);
+    const discountAmount = manualDiscountAmount;
     const taxBreakdown = calculateTaxBreakdown({
       subtotal,
       discountAmount,
@@ -369,15 +362,8 @@ export async function POST(request: Request) {
     const paymentMethodSummary = isCreditSale
       ? 'Customer Credit'
       : getSalePaymentSummaryLabel(paymentValidation.payments);
-    const pointsEarned = customer ? calculatePointsEarned(totalAmount) : 0;
 
     const sale = await prisma.$transaction(async (tx) => {
-      const currentLoyaltyBalance = customer ? await getCustomerLoyaltyBalance(tx, customer.id) : 0;
-
-      if (loyaltyPointsToRedeem > currentLoyaltyBalance) {
-        throw new Error('LOYALTY_BALANCE_EXCEEDED');
-      }
-
       const saleNumber = await getNextDocumentNumber(tx, {
         shopId,
         type: DocumentSequenceType.SALE,
@@ -407,9 +393,6 @@ export async function POST(request: Request) {
           changeDue: paymentValidation.summary.changeDue,
           paymentMethod: paymentMethodSummary,
           isCreditSale,
-          loyaltyPointsEarned: pointsEarned,
-          loyaltyPointsRedeemed: loyaltyPointsToRedeem,
-          loyaltyDiscountAmount,
           notes: normalizeText(parsed.data.notes),
           cashierName: session.user.name || session.user.email || 'Cashier',
           items: {
@@ -440,40 +423,6 @@ export async function POST(request: Request) {
       });
 
       if (customer) {
-        let nextBalance = currentLoyaltyBalance;
-
-        if (loyaltyPointsToRedeem > 0) {
-          nextBalance -= loyaltyPointsToRedeem;
-          await tx.customerLoyaltyLedger.create({
-            data: {
-              shopId,
-              customerId: customer.id,
-              saleId: saleRecord.id,
-              type: 'REDEEMED',
-              points: loyaltyPointsToRedeem,
-              balanceAfter: nextBalance,
-              note: `Redeemed for sale ${saleRecord.saleNumber}.`,
-              createdAt: occurredAt
-            }
-          });
-        }
-
-        if (pointsEarned > 0) {
-          nextBalance += pointsEarned;
-          await tx.customerLoyaltyLedger.create({
-            data: {
-              shopId,
-              customerId: customer.id,
-              saleId: saleRecord.id,
-              type: 'EARNED',
-              points: pointsEarned,
-              balanceAfter: nextBalance,
-              note: `Earned from sale ${saleRecord.saleNumber}.`,
-              createdAt: occurredAt
-            }
-          });
-        }
-
         if (isCreditSale && creditDueDate) {
           await tx.customerCreditLedger.create({
             data: {
@@ -534,8 +483,6 @@ export async function POST(request: Request) {
           paymentCount: paymentValidation.payments.length,
           isCreditSale,
           creditDueDate: creditDueDate?.toISOString() ?? null,
-          loyaltyPointsRedeemed: loyaltyPointsToRedeem,
-          loyaltyPointsEarned: pointsEarned,
           totalAmount,
           totalPaid: paymentValidation.summary.totalPaid,
           changeDue: paymentValidation.summary.changeDue,
@@ -561,13 +508,6 @@ export async function POST(request: Request) {
       { status: 201 }
     );
   } catch (error) {
-    if (error instanceof Error && error.message === 'LOYALTY_BALANCE_EXCEEDED') {
-      return NextResponse.json(
-        { error: 'Customer does not have enough loyalty points for this redemption.' },
-        { status: 400 }
-      );
-    }
-
     return apiErrorResponse(error, 'Unable to complete sale.');
   }
 }
