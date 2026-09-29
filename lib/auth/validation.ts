@@ -23,13 +23,16 @@ const permissionSchema = z.enum(PERMISSION_KEYS);
 const optionalText = () => z.string().trim().optional().nullable();
 const shopTypeSchema = z.enum(SHOP_TYPE_OPTIONS.map((option) => option.value) as [string, ...string[]]);
 const paymentMethodSchema = z.enum(PAYMENT_METHODS);
-const imageUrlSchema = z
+export const imageUrlSchema = z
   .string()
   .trim()
   .min(1, 'La imagen es obligatoria.')
   .max(600000, 'La imagen es demasiado grande.')
   .refine(
-    (value) => value.startsWith('data:image/') || /^https?:\/\//i.test(value),
+    (value) =>
+      value.startsWith('data:image/') ||
+      value.startsWith('/uploads/products/') ||
+      /^https?:\/\//i.test(value),
     'Usa una imagen cargada o una URL de imagen válida.'
   );
 

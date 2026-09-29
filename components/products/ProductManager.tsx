@@ -14,6 +14,7 @@ import {
   getMarginSummary
 } from '@/lib/product-merchandising';
 import { summarizeConversions } from '@/lib/uom';
+import { compressProductImage } from '@/lib/client-image-compression';
 
 type Category = { id: string; name: string; parentId: string | null };
 type UnitOfMeasure = { id: string; code: string; name: string; isBase: boolean };
@@ -193,6 +194,7 @@ export default function ProductManager({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [labelSize, setLabelSize] = useState<BarcodeLabelSize>('medium');
   const uploadInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState({
     categoryId: '',
     baseUnitOfMeasureId: units.find((unit) => unit.code === 'PIECE')?.id ?? units[0]?.id ?? '',
@@ -216,6 +218,7 @@ export default function ProductManager({
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
   const [uploadingImages, setUploadingImages] = useState(false);
+  const [uploadStatusText, setUploadStatusText] = useState('');
 
   const filtered = useMemo(() => {
     const term = query.toLowerCase().trim();
@@ -323,15 +326,34 @@ export default function ProductManager({
       if (uploadInputRef.current) {
         uploadInputRef.current.value = '';
       }
+      if (cameraInputRef.current) {
+        cameraInputRef.current.value = '';
+      }
       return;
     }
 
     const selectedFiles = Array.from(files).slice(0, remainingSlots);
     setUploadingImages(true);
+    setUploadStatusText('Optimizando imágenes…');
     setError('');
 
     try {
-      const uploadedImageUrls = await Promise.all(selectedFiles.map((file) => uploadProductImage(file)));
+      const compressedFiles = await Promise.all(
+        selectedFiles.map((file) =>
+          compressProductImage(file, {
+            maxWidth: 1000,
+            maxHeight: 1000,
+            quality: 0.82
+          })
+        )
+      );
+
+      setUploadStatusText('Subiendo…');
+
+      const uploadedImageUrls = await Promise.all(
+        compressedFiles.map((file) => uploadProductImage(file))
+      );
+
       setForm((current) => ({
         ...current,
         images: [
@@ -346,8 +368,12 @@ export default function ProductManager({
       setError(error instanceof Error ? error.message : 'No se pudo subir una o más imágenes.');
     } finally {
       setUploadingImages(false);
+      setUploadStatusText('');
       if (uploadInputRef.current) {
         uploadInputRef.current.value = '';
+      }
+      if (cameraInputRef.current) {
+        cameraInputRef.current.value = '';
       }
     }
   }
@@ -772,7 +798,7 @@ export default function ProductManager({
 
           <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
             <div className="rounded-[26px] border border-stone-200 bg-white/70 p-4 sm:p-5">
-              <div className="mb-4 flex items-center justify-between gap-3">
+              <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-stone-400">Imágenes</div>
                   <div className="mt-1 text-lg font-black text-stone-900">Archivos multimedia del producto</div>
@@ -785,11 +811,41 @@ export default function ProductManager({
                   className="hidden"
                   onChange={(event) => void addUploadedImages(event.target.files)}
                 />
-                <div className="flex gap-2">
-                  <Button type="button" variant="secondary" onClick={() => uploadInputRef.current?.click()} disabled={uploadingImages || form.images.length >= 6}>
-                    {uploadingImages ? 'Subiendo…' : 'Subir imagen'}
+                <input
+                  ref={cameraInputRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="hidden"
+                  onChange={(event) => void addUploadedImages(event.target.files)}
+                />
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => cameraInputRef.current?.click()}
+                    disabled={uploadingImages || form.images.length >= 6}
+                    title="Tomar foto directa con la cámara del dispositivo"
+                  >
+                    <svg className="mr-1.5 inline-block h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    {uploadingImages ? (uploadStatusText || 'Procesando…') : 'Tomar foto'}
                   </Button>
-                  <Button type="button" variant="secondary" onClick={() => setForm((current) => ({ ...current, images: [...current.images, emptyImage(current.images.length)] }))}>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => uploadInputRef.current?.click()}
+                    disabled={uploadingImages || form.images.length >= 6}
+                  >
+                    {uploadingImages ? (uploadStatusText || 'Subiendo…') : 'Subir de galería'}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => setForm((current) => ({ ...current, images: [...current.images, emptyImage(current.images.length)] }))}
+                  >
                     Añadir URL
                   </Button>
                 </div>
