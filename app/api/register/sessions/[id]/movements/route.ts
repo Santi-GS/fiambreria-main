@@ -22,7 +22,7 @@ export async function POST(
 
     if (!parsed.success) {
       return NextResponse.json(
-        { error: parsed.error.issues[0]?.message ?? 'Invalid cash movement payload.' },
+        { error: parsed.error.issues[0]?.message ?? 'Datos de movimiento de efectivo inválidos.' },
         { status: 400 }
       );
     }
@@ -44,19 +44,19 @@ export async function POST(
     });
 
     if (!cashSession) {
-      return NextResponse.json({ error: 'Register session not found.' }, { status: 404 });
+      return NextResponse.json({ error: 'Sesión de caja no encontrada.' }, { status: 404 });
     }
 
     if (cashSession.status !== 'OPEN') {
       return NextResponse.json(
-        { error: 'Cash movements can only be recorded on an open register session.' },
+        { error: 'Los movimientos de efectivo solo pueden registrarse en una sesión de caja abierta.' },
         { status: 409 }
       );
     }
 
     if (cashSession.userId !== userId && role === 'CASHIER') {
       return NextResponse.json(
-        { error: "Only a manager or admin can post a cash movement to another cashier's shift." },
+        { error: 'Solo un encargado o administrador puede registrar un movimiento en el turno de otro cajero.' },
         { status: 403 }
       );
     }
@@ -118,6 +118,6 @@ export async function POST(
       summary: serializeRegisterSessionSummary(result.summary)
     });
   } catch (error) {
-    return apiErrorResponse(error, 'Unable to record cash movement.');
+    return apiErrorResponse(error, 'No se pudo registrar el movimiento de efectivo.');
   }
 }

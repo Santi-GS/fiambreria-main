@@ -53,7 +53,7 @@ export default async function ProtectedLayout({ children }: { children: React.Re
             }))}
           />
           <main className="relative z-10 min-h-screen flex-1">
-            <div className="mx-auto max-w-[1500px] px-4 py-4 sm:px-6 lg:px-8 lg:py-6">
+            <div className="mx-auto max-w-[1500px] px-4 py-4 sm:px-6 lg:px-8 lg:py-6 2xl:max-w-[1850px]">
               <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <WorkspaceHeaderDisplay />
                 <div className="flex flex-wrap items-center gap-3 self-end lg:self-auto">

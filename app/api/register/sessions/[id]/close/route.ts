@@ -24,7 +24,7 @@ export async function POST(
 
     if (!parsed.success) {
       return NextResponse.json(
-        { error: parsed.error.issues[0]?.message ?? 'Invalid register closing payload.' },
+        { error: parsed.error.issues[0]?.message ?? 'Datos de cierre de caja inválidos.' },
         { status: 400 }
       );
     }
@@ -67,11 +67,11 @@ export async function POST(
     });
 
     if (!cashSession) {
-      return NextResponse.json({ error: 'Register session not found.' }, { status: 404 });
+      return NextResponse.json({ error: 'Sesión de caja no encontrada.' }, { status: 404 });
     }
 
     if (cashSession.status !== 'OPEN') {
-      return NextResponse.json({ error: 'This register session is already closed.' }, { status: 409 });
+      return NextResponse.json({ error: 'Esta sesión de caja ya se encuentra cerrada.' }, { status: 409 });
     }
 
     const isOwnSession = cashSession.userId === userId;
@@ -80,14 +80,14 @@ export async function POST(
 
     if (!isOwnSession && !canOverride) {
       return NextResponse.json(
-        { error: "Only a manager or admin can close another cashier's session." },
+        { error: 'Solo un encargado o administrador puede cerrar la sesión de otro cajero.' },
         { status: 403 }
       );
     }
 
     if (!isOwnSession && canOverride && !closeNotes) {
       return NextResponse.json(
-        { error: 'Manager override close requires notes.' },
+        { error: 'El cierre administrativo requiere ingresar un motivo en las notas.' },
         { status: 400 }
       );
     }
@@ -175,6 +175,6 @@ export async function POST(
 
     return NextResponse.json({ session: serializeCashSession(closedSession) });
   } catch (error) {
-    return apiErrorResponse(error, 'Unable to close register session.');
+    return apiErrorResponse(error, 'No se pudo cerrar la sesión de caja.');
   }
 }

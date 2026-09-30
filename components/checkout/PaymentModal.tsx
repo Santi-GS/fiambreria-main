@@ -138,7 +138,7 @@ export default function PaymentModal({
           <button
             type="button"
             onClick={onClose}
-            className="flex h-9 w-9 items-center justify-center rounded-xl bg-stone-100 text-stone-500 transition hover:bg-stone-200 hover:text-stone-800"
+            className="flex h-11 w-11 items-center justify-center rounded-2xl bg-stone-100 text-stone-600 transition hover:bg-stone-200 hover:text-stone-900 active:scale-95"
             title="Cerrar [Escape]"
           >
             ✕
@@ -223,23 +223,51 @@ export default function PaymentModal({
                   type="checkbox"
                   checked={isCreditSale}
                   onChange={(e) => onIsCreditSaleChange(e.target.checked)}
-                  className="rounded text-sky-600 focus:ring-sky-500"
+                  className="h-4 w-4 rounded text-sky-600 focus:ring-sky-500"
                 />
                 <span>Venta a crédito (Cuenta Corriente)</span>
               </label>
             </div>
 
             {!isCreditSale ? (
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {payments.map((payment) => {
                   const exactAmount = getExactAmountForLine(payment.id);
                   const quickAmounts = getQuickCashAmounts(exactAmount).filter((amt) => amt !== exactAmount);
+                  const parsedAmount = parseFloat(payment.amount);
+                  const isLineEmpty =
+                    !payment.amount || payment.amount.trim() === '' || isNaN(parsedAmount) || parsedAmount <= 0;
 
                   return (
-                    <div key={payment.id} className="rounded-2xl border border-stone-200 bg-white p-3 space-y-2">
-                      <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
+                    <div
+                      key={payment.id}
+                      className={`rounded-2xl border-2 p-3.5 space-y-2.5 transition-all duration-200 ${
+                        isLineEmpty
+                          ? 'border-red-400 bg-red-50/30 shadow-[0_0_12px_rgba(239,68,68,0.2)]'
+                          : 'border-emerald-500 bg-emerald-50/20 shadow-[0_0_10px_rgba(16,185,129,0.15)]'
+                      }`}
+                    >
+                      {/* State badge indicator */}
+                      <div className="flex items-center justify-between">
+                        {isLineEmpty ? (
+                          <div className="flex items-center gap-2 text-xs font-black text-red-600 animate-pulse">
+                            <span className="inline-block h-2.5 w-2.5 rounded-full bg-red-500" />
+                            <span>🔴 Monto sin definir — Ingrese el importe o elija billete</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2 text-xs font-black text-emerald-800">
+                            <span className="inline-block h-2.5 w-2.5 rounded-full bg-emerald-500" />
+                            <span>🟢 Monto asignado: {money(parsedAmount, currencySymbol)}</span>
+                          </div>
+                        )}
+                        <span className="text-[11px] font-bold text-stone-400 uppercase">
+                          Línea de cobro
+                        </span>
+                      </div>
+
+                      <div className="grid gap-2.5 sm:grid-cols-[1.2fr_1fr_auto]">
                         <select
-                          className="h-10 w-full rounded-xl border border-stone-200 bg-white px-3 text-xs font-bold text-stone-900 outline-none focus:border-emerald-500"
+                          className="h-12 w-full rounded-xl border-2 border-stone-200 bg-white px-3 text-sm font-bold text-stone-900 outline-none focus:border-emerald-500"
                           value={payment.method}
                           onChange={(e) =>
                             onUpdatePaymentLine(payment.id, { method: e.target.value as PaymentMethod })
@@ -266,20 +294,26 @@ export default function PaymentModal({
                           ))}
                         </select>
 
-                        <Input
-                          type="number"
-                          step="any"
-                          placeholder={payment.method === 'Cash' ? 'Efectivo recibido' : 'Monto'}
-                          value={payment.amount}
-                          onChange={(e) => onUpdatePaymentLine(payment.id, { amount: e.target.value })}
-                          className="h-10 text-sm font-bold"
-                        />
+                        <div className="relative">
+                          <input
+                            type="number"
+                            step="any"
+                            placeholder={payment.method === 'Cash' ? 'Efectivo recibido...' : 'Monto a cobrar...'}
+                            value={payment.amount}
+                            onChange={(e) => onUpdatePaymentLine(payment.id, { amount: e.target.value })}
+                            className={`h-12 w-full rounded-xl border-2 px-3.5 text-base font-black outline-none transition ${
+                              isLineEmpty
+                                ? 'payment-empty-pulse border-red-500 text-red-900 placeholder:text-red-400 focus:border-red-600'
+                                : 'payment-filled-success border-emerald-500 text-emerald-950 focus:border-emerald-600'
+                            }`}
+                          />
+                        </div>
 
                         {payments.length > 1 ? (
                           <button
                             type="button"
                             onClick={() => onRemovePaymentLine(payment.id)}
-                            className="h-10 px-3 text-xs font-bold text-red-600 hover:bg-red-50 rounded-xl"
+                            className="flex h-12 items-center justify-center rounded-xl border border-red-200 bg-red-50 px-4 text-xs font-bold text-red-600 transition hover:bg-red-600 hover:text-white active:scale-95"
                           >
                             Quitar
                           </button>
@@ -298,30 +332,76 @@ export default function PaymentModal({
                           }
                           value={payment.referenceNumber}
                           onChange={(e) => onUpdatePaymentLine(payment.id, { referenceNumber: e.target.value })}
-                          className="h-9 text-xs"
+                          className="h-11 text-xs"
                         />
                       ) : null}
 
-                      {/* Quick cash pills */}
+                      {/* Cash quick buttons: Exact and Common Banknotes */}
                       {payment.method === 'Cash' ? (
-                        <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                          <button
-                            type="button"
-                            onClick={() => onSetPaymentLineAmount(payment.id, exactAmount)}
-                            className="rounded-lg bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-800 border border-emerald-200 hover:bg-emerald-100"
-                          >
-                            Exacto ({money(exactAmount, currencySymbol)})
-                          </button>
-                          {quickAmounts.map((amt) => (
+                        <div className="space-y-1.5 pt-1">
+                          <div className="text-[11px] font-bold text-stone-500 uppercase tracking-wide">
+                            Billetes y montos rápidos:
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            {/* Exact Amount Pill */}
                             <button
-                              key={`${payment.id}-${amt}`}
                               type="button"
-                              onClick={() => onSetPaymentLineAmount(payment.id, amt)}
-                              className="rounded-lg bg-stone-100 px-2.5 py-1 text-xs font-bold text-stone-700 hover:bg-stone-200"
+                              onClick={() => onSetPaymentLineAmount(payment.id, exactAmount)}
+                              className={`flex min-h-[42px] items-center gap-1.5 rounded-xl border px-3.5 py-2 text-xs font-extrabold shadow-2xs transition active:scale-95 ${
+                                parsedAmount === exactAmount
+                                  ? 'border-emerald-600 bg-emerald-600 text-white'
+                                  : 'border-emerald-300 bg-emerald-50 text-emerald-900 hover:bg-emerald-100 hover:border-emerald-400'
+                              }`}
                             >
-                              {money(amt, currencySymbol)}
+                              <span>Exacto ({money(exactAmount, currencySymbol)})</span>
                             </button>
-                          ))}
+
+                            {/* Guaranteed Banknote $10,000 */}
+                            <button
+                              type="button"
+                              onClick={() => onSetPaymentLineAmount(payment.id, 10000)}
+                              className={`flex min-h-[42px] items-center gap-1.5 rounded-xl border px-3.5 py-2 text-xs font-black shadow-2xs transition active:scale-95 ${
+                                parsedAmount === 10000
+                                  ? 'border-emerald-600 bg-emerald-700 text-white'
+                                  : 'border-emerald-300 bg-emerald-100/70 text-emerald-950 hover:bg-emerald-200 hover:border-emerald-400'
+                              }`}
+                            >
+                              <span className="text-sm">💵</span>
+                              <span>Billete $10.000</span>
+                            </button>
+
+                            {/* Guaranteed Banknote $20,000 */}
+                            <button
+                              type="button"
+                              onClick={() => onSetPaymentLineAmount(payment.id, 20000)}
+                              className={`flex min-h-[42px] items-center gap-1.5 rounded-xl border px-3.5 py-2 text-xs font-black shadow-2xs transition active:scale-95 ${
+                                parsedAmount === 20000
+                                  ? 'border-teal-600 bg-teal-700 text-white'
+                                  : 'border-teal-300 bg-teal-100/70 text-teal-950 hover:bg-teal-200 hover:border-teal-400'
+                              }`}
+                            >
+                              <span className="text-sm">💵</span>
+                              <span>Billete $20.000</span>
+                            </button>
+
+                            {/* Other Quick Step Amounts */}
+                            {quickAmounts
+                              .filter((amt) => amt !== exactAmount && amt !== 10000 && amt !== 20000)
+                              .map((amt) => (
+                                <button
+                                  key={`${payment.id}-${amt}`}
+                                  type="button"
+                                  onClick={() => onSetPaymentLineAmount(payment.id, amt)}
+                                  className={`min-h-[42px] rounded-xl border px-3 py-2 text-xs font-bold transition active:scale-95 ${
+                                    parsedAmount === amt
+                                      ? 'border-stone-700 bg-stone-800 text-white'
+                                      : 'border-stone-200 bg-stone-100 text-stone-700 hover:bg-stone-200'
+                                  }`}
+                                >
+                                  {money(amt, currencySymbol)}
+                                </button>
+                              ))}
+                          </div>
                         </div>
                       ) : null}
                     </div>
@@ -331,9 +411,9 @@ export default function PaymentModal({
                 <button
                   type="button"
                   onClick={onAddPaymentLine}
-                  className="text-xs font-bold text-sky-700 hover:underline"
+                  className="flex h-11 items-center gap-2 rounded-xl border border-sky-200 bg-sky-50 px-4 text-xs font-bold text-sky-800 transition hover:bg-sky-100 active:scale-95"
                 >
-                  + Dividir pago (Agregar otra línea)
+                  <span>+ Dividir pago (Agregar otro medio de pago)</span>
                 </button>
               </div>
             ) : (
@@ -344,7 +424,7 @@ export default function PaymentModal({
                     type="date"
                     value={creditDueDate}
                     onChange={(e) => onCreditDueDateChange(e.target.value)}
-                    className="h-9 text-xs"
+                    className="h-10 text-xs"
                   />
                 </div>
                 <div className="flex items-center">
@@ -394,8 +474,14 @@ export default function PaymentModal({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between border-t border-stone-100 bg-stone-50/50 p-4">
-          <Button type="button" variant="secondary" onClick={onClose} disabled={loading}>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-stone-100 bg-stone-50/70 p-4 sm:p-5">
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={onClose}
+            disabled={loading}
+            className="h-12 min-w-[140px] rounded-2xl px-5 text-sm font-bold text-stone-700 active:scale-95"
+          >
             Cancelar [Escape]
           </Button>
 
@@ -403,7 +489,7 @@ export default function PaymentModal({
             type="button"
             disabled={!canCompleteSale || loading}
             onClick={() => void onCompleteSale()}
-            className="px-8 font-black text-sm bg-emerald-600 hover:bg-emerald-700 text-white"
+            className="h-12 min-w-[220px] rounded-2xl px-8 text-base font-black bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-950/20 active:scale-95 transition"
           >
             {loading
               ? 'Procesando venta...'

@@ -133,6 +133,8 @@ export function getSalePaymentSummaryLabel(payments: Array<Pick<PaymentInput, 'm
   return uniqueMethods.length === 1 ? uniqueMethods[0] : 'Split';
 }
 
+export const COMMON_BANKNOTE_DENOMINATIONS = [10000, 20000] as const;
+
 function roundUpToStep(amount: number, step: number) {
   return roundCurrency(Math.ceil(amount / step) * step);
 }
@@ -145,13 +147,22 @@ export function getQuickCashAmounts(amountDue: number) {
   const exactAmount = roundCurrency(amountDue);
   const candidates = [
     exactAmount,
-    roundUpToStep(amountDue, 20),
-    roundUpToStep(amountDue, 50),
     roundUpToStep(amountDue, 100),
-    roundUpToStep(amountDue, 200),
     roundUpToStep(amountDue, 500),
-    roundUpToStep(amountDue, 1000)
+    roundUpToStep(amountDue, 1000),
+    roundUpToStep(amountDue, 2000),
+    roundUpToStep(amountDue, 5000),
+    roundUpToStep(amountDue, 10000),
+    roundUpToStep(amountDue, 20000)
   ];
 
-  return [...new Set(candidates)].sort((left, right) => left - right);
+  if (amountDue <= 10000) {
+    candidates.push(10000, 20000);
+  } else if (amountDue <= 20000) {
+    candidates.push(20000);
+  }
+
+  return [...new Set(candidates)]
+    .filter((amount) => amount >= exactAmount)
+    .sort((left, right) => left - right);
 }

@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  COMMON_BANKNOTE_DENOMINATIONS,
   getPaymentSummary,
+  getQuickCashAmounts,
   normalizePaymentInput,
   requiresReferenceNumber,
   validatePaymentsForSale
@@ -87,5 +89,19 @@ describe('payments', () => {
       cashReceived: 300,
       hasCashPayment: true
     });
+  });
+
+  it('includes common banknote denominations ($10,000 and $20,000) in quick cash amounts', () => {
+    expect(COMMON_BANKNOTE_DENOMINATIONS).toEqual([10000, 20000]);
+
+    // Small amount includes 10000 and 20000
+    const amountsForSmallDue = getQuickCashAmounts(3500);
+    expect(amountsForSmallDue).toContain(10000);
+    expect(amountsForSmallDue).toContain(20000);
+    expect(amountsForSmallDue[0]).toBe(3500);
+
+    // Medium amount includes 20000
+    const amountsForMediumDue = getQuickCashAmounts(12000);
+    expect(amountsForMediumDue).toContain(20000);
   });
 });

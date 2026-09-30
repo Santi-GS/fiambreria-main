@@ -70,7 +70,7 @@ export default function ParkedSalesModal({
           <button
             type="button"
             onClick={onClose}
-            className="flex h-9 w-9 items-center justify-center rounded-xl bg-stone-100 text-stone-500 transition hover:bg-stone-200 hover:text-stone-800"
+            className="flex h-11 w-11 items-center justify-center rounded-2xl bg-stone-100 text-stone-600 transition hover:bg-stone-200 hover:text-stone-900 active:scale-95"
             title="Cerrar [Escape]"
           >
             ✕
@@ -80,14 +80,14 @@ export default function ParkedSalesModal({
         {/* Action bar to suspend current cart */}
         <div className="border-b border-stone-100 bg-stone-50/70 p-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <span className="text-xs font-bold text-stone-600">Acciones sobre el carrito actual:</span>
-            <div className="flex gap-2">
+            <span className="text-xs font-bold text-stone-700">Acciones sobre el carrito actual:</span>
+            <div className="flex flex-wrap gap-2">
               <Button
                 type="button"
                 variant="secondary"
                 disabled={!canSaveCurrent || Boolean(holding)}
                 onClick={() => void onSaveCurrentCart('SAVED_CART')}
-                className="text-xs h-9"
+                className="h-11 rounded-xl px-4 text-xs font-bold"
               >
                 {holding === 'SAVED_CART' ? 'Guardando...' : 'Poner en Espera'}
               </Button>
@@ -96,7 +96,7 @@ export default function ParkedSalesModal({
                 variant="secondary"
                 disabled={!canSaveCurrent || Boolean(holding)}
                 onClick={() => void onSaveCurrentCart('QUOTE')}
-                className="text-xs h-9"
+                className="h-11 rounded-xl px-4 text-xs font-bold"
               >
                 {holding === 'QUOTE' ? 'Guardando...' : 'Guardar Cotización'}
               </Button>

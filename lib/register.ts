@@ -161,6 +161,43 @@ export function getCashMovementLabel(type: CashMovementType) {
   }
 }
 
+export function getCashMovementDisplayLabel(type: CashMovementType | string): string {
+  switch (type) {
+    case 'CASH_DROP':
+      return 'Extracción a caja fuerte';
+    case 'PETTY_CASH':
+      return 'Caja chica';
+    case 'MANUAL_CORRECTION':
+      return 'Ajuste manual';
+    case 'PAYOUT':
+    default:
+      return 'Retiro de efectivo';
+  }
+}
+
+export function getRegisterTimelineDisplayLabel(type: string, fallback?: string): string {
+  switch (type) {
+    case 'OPENING_FLOAT':
+      return 'Fondo inicial';
+    case 'CASH_SALE':
+      return 'Venta en efectivo';
+    case 'REFUND':
+      return 'Reembolso en efectivo';
+    case 'CASH_DROP':
+      return 'Extracción a caja fuerte';
+    case 'PETTY_CASH':
+      return 'Caja chica';
+    case 'MANUAL_CORRECTION':
+      return 'Ajuste manual';
+    case 'PAYOUT':
+      return 'Retiro de efectivo';
+    case 'CLOSING_COUNT':
+      return 'Conteo de cierre';
+    default:
+      return fallback ?? type;
+  }
+}
+
 export function getCashMovementSignedAmount(
   type: CashMovementType,
   amount: number

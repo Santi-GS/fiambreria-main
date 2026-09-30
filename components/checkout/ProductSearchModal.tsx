@@ -83,7 +83,7 @@ function ProductSearchDialog({
           <button
             type="button"
             onClick={onClose}
-            className="flex h-9 w-9 items-center justify-center rounded-xl bg-stone-100 text-stone-500 transition hover:bg-stone-200 hover:text-stone-800"
+            className="flex h-11 w-11 items-center justify-center rounded-2xl bg-stone-100 text-stone-600 transition hover:bg-stone-200 hover:text-stone-900 active:scale-95"
             title="Cerrar [Escape]"
           >
             ✕
@@ -105,7 +105,7 @@ function ProductSearchDialog({
               <button
                 type="button"
                 onClick={() => setSearch('')}
-                className="absolute right-3 top-3 text-xs text-stone-400 hover:text-stone-700"
+                className="absolute right-3.5 top-3.5 text-xs font-bold text-stone-400 hover:text-stone-700"
               >
                 Limpiar
               </button>
@@ -113,14 +113,14 @@ function ProductSearchDialog({
           </div>
 
           {/* Category Pills */}
-          <div className="flex flex-wrap gap-1.5 max-h-20 overflow-y-auto">
+          <div className="flex flex-wrap gap-2 max-h-24 overflow-y-auto">
             <button
               type="button"
               onClick={() => setSelectedCategory('')}
-              className={`rounded-full px-3 py-1 text-xs font-bold transition ${
+              className={`min-h-[38px] rounded-full px-4 py-1.5 text-xs font-bold transition active:scale-95 ${
                 !selectedCategory
-                  ? 'bg-sky-700 text-white'
-                  : 'bg-white border border-stone-200 text-stone-600 hover:border-stone-300 hover:bg-stone-100'
+                  ? 'bg-sky-700 text-white shadow-xs'
+                  : 'bg-white border border-stone-200 text-stone-700 hover:border-stone-300 hover:bg-stone-100'
               }`}
             >
               Todos ({products.length})
@@ -130,10 +130,10 @@ function ProductSearchDialog({
                 key={cat.id}
                 type="button"
                 onClick={() => setSelectedCategory(cat.id)}
-                className={`rounded-full px-3 py-1 text-xs font-bold transition ${
+                className={`min-h-[38px] rounded-full px-4 py-1.5 text-xs font-bold transition active:scale-95 ${
                   selectedCategory === cat.id
-                    ? 'bg-sky-700 text-white'
-                    : 'bg-white border border-stone-200 text-stone-600 hover:border-stone-300 hover:bg-stone-100'
+                    ? 'bg-sky-700 text-white shadow-xs'
+                    : 'bg-white border border-stone-200 text-stone-700 hover:border-stone-300 hover:bg-stone-100'
                 }`}
               >
                 {cat.name}

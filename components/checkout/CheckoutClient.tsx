@@ -969,13 +969,50 @@ export default function CheckoutClient({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  // Display scale mode for 11" 2560x1600 tablets and high-density screens
+  const [displayScale, setDisplayScale] = useState<'normal' | 'large' | 'xlarge'>('normal');
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      try {
+        const saved = localStorage.getItem('vertexpos_display_scale');
+        if (saved === 'normal' || saved === 'large' || saved === 'xlarge') {
+          setDisplayScale(saved);
+          return;
+        }
+        // Auto-detect high-resolution tablet (e.g. 2560x1600 on 11-inch) or high-DPI displays
+        if (
+          window.screen.width >= 2000 ||
+          (window.screen.width >= 1200 && (window.devicePixelRatio ?? 1) >= 1.5)
+        ) {
+          setDisplayScale('large');
+        }
+      } catch {}
+    }, 0);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const handleDisplayScaleChange = (scale: 'normal' | 'large' | 'xlarge') => {
+    setDisplayScale(scale);
+    try {
+      localStorage.setItem('vertexpos_display_scale', scale);
+    } catch {}
+  };
+
+  const scaleClass =
+    displayScale === 'large'
+      ? 'pos-scale-large'
+      : displayScale === 'xlarge'
+        ? 'pos-scale-xlarge'
+        : 'pos-scale-normal';
+
   const activeReceiptSale = useMemo(
     () => queuedSales.find((item) => item.id === activeReceiptId) ?? null,
     [queuedSales, activeReceiptId]
   );
 
   return (
-    <div className="space-y-4">
+    <div className={`space-y-4 transition-all duration-150 ${scaleClass}`}>
       {/* Offline Status & Notice Bar if any */}
       {!isOnline || queuedSales.length > 0 ? (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs text-amber-900">
@@ -1023,6 +1060,8 @@ export default function CheckoutClient({
         totalAmount={total}
         currencySymbol={currencySymbol}
         canCompleteSale={cart.length > 0}
+        displayScale={displayScale}
+        onDisplayScaleChange={handleDisplayScaleChange}
       />
 
       {/* Notifications / Feedback */}

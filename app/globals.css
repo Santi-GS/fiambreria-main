@@ -72,3 +72,133 @@ textarea::placeholder {
   background: rgba(16, 185, 129, 0.18);
   color: #1c1917;
 }
+
+@keyframes pulse-danger-border {
+  0%, 100% {
+    border-color: #ef4444;
+    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.35);
+    background-color: rgba(254, 242, 242, 0.65);
+  }
+  50% {
+    border-color: #f87171;
+    box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.15);
+    background-color: rgba(254, 242, 242, 0.25);
+  }
+}
+
+.payment-empty-pulse {
+  animation: pulse-danger-border 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  border-width: 2px !important;
+}
+
+.payment-filled-success {
+  border-color: #10b981 !important;
+  border-width: 2px !important;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
+  background-color: rgba(236, 253, 245, 0.45);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .payment-empty-pulse {
+    animation: none;
+    border-color: #ef4444 !important;
+    box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.3) !important;
+    background-color: rgba(254, 242, 242, 0.4) !important;
+  }
+}
+
+/* POS Display Scaling for High-Resolution Screens (e.g. 11" 2560x1600 Tablet) */
+.pos-scale-normal {
+  font-size: 1rem;
+}
+
+.pos-scale-large {
+  font-size: 1.12rem;
+}
+
+.pos-scale-large input,
+.pos-scale-large select,
+.pos-scale-large button {
+  font-size: 1.05rem;
+}
+
+.pos-scale-large .h-11 {
+  height: 3.25rem !important;
+}
+
+.pos-scale-large .w-11 {
+  width: 3.25rem !important;
+}
+
+.pos-scale-large .h-12 {
+  height: 3.5rem !important;
+}
+
+.pos-scale-large .text-xs {
+  font-size: 0.85rem !important;
+  line-height: 1.25rem !important;
+}
+
+.pos-scale-large .text-sm {
+  font-size: 1rem !important;
+  line-height: 1.45rem !important;
+}
+
+.pos-scale-large .text-base {
+  font-size: 1.125rem !important;
+  line-height: 1.65rem !important;
+}
+
+.pos-scale-large .text-3xl {
+  font-size: 2.25rem !important;
+}
+
+.pos-scale-large .text-4xl {
+  font-size: 2.75rem !important;
+}
+
+/* Extra Large Scale (135%) */
+.pos-scale-xlarge {
+  font-size: 1.25rem;
+}
+
+.pos-scale-xlarge input,
+.pos-scale-xlarge select,
+.pos-scale-xlarge button {
+  font-size: 1.18rem;
+}
+
+.pos-scale-xlarge .h-11 {
+  height: 3.65rem !important;
+}
+
+.pos-scale-xlarge .w-11 {
+  width: 3.65rem !important;
+}
+
+.pos-scale-xlarge .h-12 {
+  height: 3.95rem !important;
+}
+
+.pos-scale-xlarge .text-xs {
+  font-size: 0.95rem !important;
+  line-height: 1.35rem !important;
+}
+
+.pos-scale-xlarge .text-sm {
+  font-size: 1.125rem !important;
+  line-height: 1.6rem !important;
+}
+
+.pos-scale-xlarge .text-base {
+  font-size: 1.25rem !important;
+  line-height: 1.85rem !important;
+}
+
+.pos-scale-xlarge .text-3xl {
+  font-size: 2.6rem !important;
+}
+
+.pos-scale-xlarge .text-4xl {
+  font-size: 3.25rem !important;
+}

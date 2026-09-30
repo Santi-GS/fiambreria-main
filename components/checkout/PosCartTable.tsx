@@ -23,15 +23,15 @@ export default function PosCartTable({
       <div className="overflow-x-auto">
         <table className="w-full border-collapse text-left">
           <thead>
-            <tr className="bg-[#1e3a5f] text-xs font-black uppercase tracking-wider text-white">
-              <th className="py-3.5 pl-6 pr-4">Descripción</th>
-              <th className="px-4 py-3.5 text-center">Cant</th>
-              <th className="px-4 py-3.5 text-right">Precio</th>
-              <th className="py-3.5 pl-4 pr-6 text-right">Importe</th>
-              <th className="w-12 py-3.5 pr-4 text-center"></th>
+            <tr className="bg-[#1e3a5f] text-xs font-black uppercase tracking-wider text-white 2xl:text-sm">
+              <th className="py-4 pl-6 pr-4 2xl:py-5">Descripción</th>
+              <th className="px-4 py-4 text-center 2xl:py-5">Cant</th>
+              <th className="px-4 py-4 text-right 2xl:py-5">Precio</th>
+              <th className="py-4 pl-4 pr-6 text-right 2xl:py-5">Importe</th>
+              <th className="w-14 py-4 pr-4 text-center 2xl:py-5"></th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-stone-100 text-sm">
+          <tbody className="divide-y divide-stone-100 text-sm 2xl:text-base">
             {cart.length > 0 ? (
               cart.map((item, index) => {
                 const lineTotal = Number(item.price) * item.qty;
@@ -43,24 +43,26 @@ export default function PosCartTable({
                     className={`transition hover:bg-sky-50/60 ${isEven ? 'bg-white' : 'bg-stone-50/40'}`}
                   >
                     {/* Description */}
-                    <td className="py-3.5 pl-6 pr-4">
-                      <div className="font-extrabold uppercase text-stone-900">{item.name}</div>
-                      <div className="mt-0.5 flex flex-wrap gap-2 text-xs text-stone-500">
+                    <td className="py-4 pl-6 pr-4 2xl:py-5">
+                      <div className="text-sm font-black uppercase tracking-tight text-stone-950 sm:text-base 2xl:text-lg">
+                        {item.name}
+                      </div>
+                      <div className="mt-0.5 flex flex-wrap gap-2 text-xs text-stone-500 2xl:text-sm">
                         {item.variantLabel ? (
-                          <span className="font-medium text-sky-700">{item.variantLabel}</span>
+                          <span className="font-bold text-sky-700">{item.variantLabel}</span>
                         ) : null}
                         {item.barcode ? <span>Cód: {item.barcode}</span> : null}
                         {item.sku ? <span>SKU: {item.sku}</span> : null}
                       </div>
                     </td>
 
-                    {/* Quantity with fast controls */}
-                    <td className="px-4 py-3.5 text-center">
+                    {/* Quantity with fast touch-friendly controls */}
+                    <td className="px-4 py-4 text-center 2xl:py-5">
                       <div className="inline-flex items-center gap-1.5 rounded-2xl border border-stone-200 bg-white p-1 shadow-2xs">
                         <button
                           type="button"
                           onClick={() => onUpdateQty(item.id, 'decrease')}
-                          className="flex h-7 w-7 items-center justify-center rounded-xl bg-stone-100 font-bold text-stone-700 transition hover:bg-stone-200 active:scale-90"
+                          className="flex h-11 w-11 items-center justify-center rounded-xl bg-stone-100 text-base font-black text-stone-800 transition hover:bg-stone-200 active:scale-95"
                           title="Disminuir"
                         >
                           -
@@ -76,12 +78,12 @@ export default function PosCartTable({
                               onUpdateQty(item.id, 'set', val);
                             }
                           }}
-                          className="w-16 text-center text-sm font-black text-stone-900 focus:outline-none"
+                          className="w-16 text-center text-base font-black text-stone-900 focus:outline-none tabular-nums sm:w-20 2xl:text-lg"
                         />
                         <button
                           type="button"
                           onClick={() => onUpdateQty(item.id, 'increase')}
-                          className="flex h-7 w-7 items-center justify-center rounded-xl bg-stone-100 font-bold text-stone-700 transition hover:bg-stone-200 active:scale-90"
+                          className="flex h-11 w-11 items-center justify-center rounded-xl bg-stone-100 text-base font-black text-stone-800 transition hover:bg-stone-200 active:scale-95"
                           title="Aumentar"
                         >
                           +
@@ -90,26 +92,26 @@ export default function PosCartTable({
                     </td>
 
                     {/* Unit Price */}
-                    <td className="px-4 py-3.5 text-right font-semibold text-stone-700">
+                    <td className="px-4 py-4 text-right font-bold text-stone-700 tabular-nums 2xl:py-5 2xl:text-base">
                       {money(item.price, currencySymbol)}
                     </td>
 
                     {/* Line Total */}
-                    <td className="py-3.5 pl-4 pr-6 text-right font-black text-stone-950">
+                    <td className="py-4 pl-4 pr-6 text-right text-base font-black text-stone-950 tabular-nums 2xl:py-5 2xl:text-lg">
                       {money(lineTotal, currencySymbol)}
                     </td>
 
                     {/* Delete Action */}
-                    <td className="py-3.5 pr-4 text-center">
+                    <td className="py-4 pr-4 text-center">
                       <button
                         type="button"
                         onClick={() => onRemoveItem(item.id)}
-                        className="flex h-8 w-8 items-center justify-center rounded-xl text-stone-400 transition hover:bg-red-50 hover:text-red-600"
+                        className="flex h-11 w-11 items-center justify-center rounded-2xl border border-transparent text-stone-400 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 active:scale-95"
                         title="Quitar artículo"
                       >
                         <svg
                           xmlns="http://www.w3.org/2000/svg"
-                          className="h-4 w-4"
+                          className="h-5 w-5"
                           fill="none"
                           viewBox="0 0 24 24"
                           stroke="currentColor"

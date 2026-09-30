@@ -2,8 +2,10 @@ import {
   calculateDenominationTotal,
   createEmptyDenominationSnapshot,
   DEFAULT_ARGENTINA_DENOMINATIONS,
+  getCashMovementDisplayLabel,
   getCashMovementLabel,
   getCashMovementSignedAmount,
+  getRegisterTimelineDisplayLabel,
   isOpenCashSessionStatus,
   normalizeDenominationSnapshot
 } from '@/lib/register';
@@ -68,6 +70,16 @@ describe('register', () => {
     expect(getCashMovementLabel('PETTY_CASH')).toBe('Petty cash');
     expect(getCashMovementLabel('MANUAL_CORRECTION')).toBe('Manual correction');
     expect(getCashMovementLabel('PAYOUT')).toBe('Payout');
+
+    expect(getCashMovementDisplayLabel('CASH_DROP')).toBe('Extracción a caja fuerte');
+    expect(getCashMovementDisplayLabel('PETTY_CASH')).toBe('Caja chica');
+    expect(getCashMovementDisplayLabel('MANUAL_CORRECTION')).toBe('Ajuste manual');
+    expect(getCashMovementDisplayLabel('PAYOUT')).toBe('Retiro de efectivo');
+
+    expect(getRegisterTimelineDisplayLabel('OPENING_FLOAT')).toBe('Fondo inicial');
+    expect(getRegisterTimelineDisplayLabel('CASH_SALE')).toBe('Venta en efectivo');
+    expect(getRegisterTimelineDisplayLabel('REFUND')).toBe('Reembolso en efectivo');
+    expect(getRegisterTimelineDisplayLabel('CLOSING_COUNT')).toBe('Conteo de cierre');
 
     expect(getCashMovementSignedAmount('MANUAL_CORRECTION', 50)).toBe(50);
     expect(getCashMovementSignedAmount('PAYOUT', 50)).toBe(-50);

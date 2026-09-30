@@ -80,7 +80,7 @@ function CustomerSearchDialog({
           <button
             type="button"
             onClick={onClose}
-            className="flex h-9 w-9 items-center justify-center rounded-xl bg-stone-100 text-stone-500 transition hover:bg-stone-200 hover:text-stone-800"
+            className="flex h-11 w-11 items-center justify-center rounded-2xl bg-stone-100 text-stone-600 transition hover:bg-stone-200 hover:text-stone-900 active:scale-95"
             title="Cerrar [Escape]"
           >
             ✕
@@ -104,15 +104,15 @@ function CustomerSearchDialog({
                 onSelectCustomer(null);
                 onClose();
               }}
-              className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${
+              className={`flex min-h-[40px] items-center rounded-full px-4 py-2 text-xs font-bold transition active:scale-95 ${
                 !selectedCustomerId
-                  ? 'bg-orange-600 text-white'
+                  ? 'bg-orange-600 text-white shadow-xs'
                   : 'bg-white border border-stone-200 text-stone-700 hover:bg-stone-100'
               }`}
             >
               ✓ Consumidor Final (Por Defecto)
             </button>
-            <span className="text-xs text-stone-400">Total clientes: {customers.length}</span>
+            <span className="text-xs font-bold text-stone-400">Total clientes: {customers.length}</span>
           </div>
         </div>
 
