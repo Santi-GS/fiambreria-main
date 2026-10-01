@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import Badge from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
@@ -113,8 +114,27 @@ export default function RegisterCloseManager({
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [movementLoadingId, setMovementLoadingId] = useState<string | null>(null);
   const [movementErrors, setMovementErrors] = useState<Record<string, { amount?: boolean; note?: boolean }>>({});
+  const [notesErrors, setNotesErrors] = useState<Record<string, boolean>>({});
   const [deletingMovementId, setDeletingMovementId] = useState<string | null>(null);
   const [confirmingSession, setConfirmingSession] = useState<SerializedActiveCashSession | null>(null);
+
+  useEffect(() => {
+    if (!confirmingSession) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        setConfirmingSession(null);
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [confirmingSession]);
 
   const sessionCountLabel = useMemo(
     () => `${sessions.length} sesión(es) activa(s) lista(s) para el cierre.`,
@@ -214,6 +234,13 @@ export default function RegisterCloseManager({
         ...prev,
         [sessionId]: { ...prev[sessionId], note: false }
       }));
+    }
+  }
+
+  function handleNotesChange(sessionId: string, value: string) {
+    updateForm(sessionId, { notes: value });
+    if (notesErrors[sessionId]) {
+      setNotesErrors((prev) => ({ ...prev, [sessionId]: false }));
     }
   }
 
@@ -324,9 +351,12 @@ export default function RegisterCloseManager({
     if (!form) return;
 
     if (session.canOverride && !form.notes.trim()) {
-      setError('Agregue una nota de anulación antes de cerrar la sesión de caja de otro cajero.');
+      setNotesErrors((prev) => ({ ...prev, [session.id]: true }));
+      setError('Agregue un motivo en las notas de cierre antes de realizar el cierre forzado de otro cajero.');
       return;
     }
+
+    setNotesErrors((prev) => ({ ...prev, [session.id]: false }));
 
     if (form.countMethod === 'MANUAL' && (!form.closingActual || Number(form.closingActual) < 0)) {
       setError('Ingrese un monto de cierre manual válido mayor o igual a cero.');
@@ -685,13 +715,19 @@ export default function RegisterCloseManager({
                       </label>
                       <Input
                         value={form.notes}
-                        onChange={(event) => updateForm(session.id, { notes: event.target.value })}
+                        onChange={(event) => handleNotesChange(session.id, event.target.value)}
                         placeholder={
                           session.canOverride
                             ? 'Motivo del cierre administrativo'
                             : 'Observaciones de caja para auditoría'
                         }
+                        className={notesErrors[session.id] ? '!border-red-500 !bg-red-50/50' : ''}
                       />
+                      {notesErrors[session.id] ? (
+                        <div className="mt-1 text-[11px] font-semibold text-red-600">
+                          Ingrese el motivo para realizar el cierre forzado
+                        </div>
+                      ) : null}
                     </div>
                   </div>
                 </div>
@@ -960,100 +996,109 @@ export default function RegisterCloseManager({
         );
       })}
 
-      {/* Modal de confirmación limpio */}
-      {confirmingSession ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/40 p-4">
-          <div className="w-full max-w-md rounded-2xl border border-stone-200 bg-white p-6 shadow-xl space-y-4">
-            <div>
-              <h3 className="text-lg font-black text-stone-950">¿Confirmar cierre de caja?</h3>
-              <p className="mt-1 text-xs text-stone-500">
-                {confirmingSession.cashierName} &mdash; Apertura: {dateTime(confirmingSession.openedAt)}
-              </p>
-            </div>
-
-            {(() => {
-              const form = forms[confirmingSession.id];
-              const actual = Number(form?.closingActual ?? 0);
-              const expected = Number(confirmingSession.expectedCash);
-              const variance = Number((actual - expected).toFixed(2));
-
-              return (
-                <div className="space-y-3">
-                  <div className="grid grid-cols-3 gap-2 rounded-xl border border-stone-200 bg-stone-50 p-3 text-center">
-                    <div>
-                      <div className="text-[10px] font-bold uppercase tracking-wider text-stone-500">Esperado</div>
-                      <div className="mt-0.5 text-sm font-black tabular-nums text-stone-900">
-                        {money(expected, currencySymbol)}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-[10px] font-bold uppercase tracking-wider text-stone-500">Contado</div>
-                      <div className="mt-0.5 text-sm font-black tabular-nums text-stone-900">
-                        {money(actual, currencySymbol)}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-[10px] font-bold uppercase tracking-wider text-stone-500">Diferencia</div>
-                      <div
-                        className={`mt-0.5 text-sm font-black tabular-nums ${
-                          variance > 0 ? 'text-emerald-700' : variance < 0 ? 'text-red-700' : 'text-stone-900'
-                        }`}
-                      >
-                        {variance > 0 ? `+${money(variance, currencySymbol)}` : money(variance, currencySymbol)}
-                      </div>
-                    </div>
-                  </div>
-
-                  {variance !== 0 ? (
-                    <div
-                      className={`rounded-xl border px-3 py-2 text-xs font-medium ${
-                        variance > 0
-                          ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
-                          : 'border-amber-200 bg-amber-50 text-amber-900'
-                      }`}
-                    >
-                      {variance > 0
-                        ? `Se detectó un sobrante de ${money(variance, currencySymbol)}.`
-                        : `Atención: Se detectó un faltante de ${money(Math.abs(variance), currencySymbol)}.`}
-                    </div>
-                  ) : (
-                    <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-800">
-                      La caja se encuentra exactamente cuadrada.
-                    </div>
-                  )}
-
-                  {form.notes ? (
-                    <div className="rounded-xl border border-stone-200 bg-stone-50 p-2.5">
-                      <div className="text-[10px] font-bold uppercase tracking-wider text-stone-500">Notas</div>
-                      <div className="mt-0.5 text-xs text-stone-700">{form.notes}</div>
-                    </div>
-                  ) : null}
+      {/* Modal de confirmación limpio y siempre centrado en pantalla */}
+      {confirmingSession && typeof document !== 'undefined'
+        ? createPortal(
+            <div
+              className="fixed inset-0 z-[100] flex items-center justify-center bg-stone-950/40 p-4"
+              onClick={() => setConfirmingSession(null)}
+            >
+              <div
+                className="w-full max-w-md rounded-2xl border border-stone-200 bg-white p-6 shadow-xl space-y-4"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div>
+                  <h3 className="text-lg font-black text-stone-950">¿Confirmar cierre de caja?</h3>
+                  <p className="mt-1 text-xs text-stone-500">
+                    {confirmingSession.cashierName} &mdash; Apertura: {dateTime(confirmingSession.openedAt)}
+                  </p>
                 </div>
-              );
-            })()}
 
-            <div className="flex flex-col-reverse sm:flex-row gap-2 pt-2">
-              <Button
-                type="button"
-                variant="secondary"
-                className="flex-1"
-                onClick={() => setConfirmingSession(null)}
-              >
-                Volver a revisar
-              </Button>
+                {(() => {
+                  const form = forms[confirmingSession.id];
+                  const actual = Number(form?.closingActual ?? 0);
+                  const expected = Number(confirmingSession.expectedCash);
+                  const variance = Number((actual - expected).toFixed(2));
 
-              <Button
-                type="button"
-                className="flex-1"
-                disabled={loadingId === confirmingSession.id}
-                onClick={() => void executeCloseSession(confirmingSession)}
-              >
-                {loadingId === confirmingSession.id ? 'Cerrando caja...' : 'Confirmar y cerrar'}
-              </Button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+                  return (
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-3 gap-2 rounded-xl border border-stone-200 bg-stone-50 p-3 text-center">
+                        <div>
+                          <div className="text-[10px] font-bold uppercase tracking-wider text-stone-500">Esperado</div>
+                          <div className="mt-0.5 text-sm font-black tabular-nums text-stone-900">
+                            {money(expected, currencySymbol)}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-[10px] font-bold uppercase tracking-wider text-stone-500">Contado</div>
+                          <div className="mt-0.5 text-sm font-black tabular-nums text-stone-900">
+                            {money(actual, currencySymbol)}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-[10px] font-bold uppercase tracking-wider text-stone-500">Diferencia</div>
+                          <div
+                            className={`mt-0.5 text-sm font-black tabular-nums ${
+                              variance > 0 ? 'text-emerald-700' : variance < 0 ? 'text-red-700' : 'text-stone-900'
+                            }`}
+                          >
+                            {variance > 0 ? `+${money(variance, currencySymbol)}` : money(variance, currencySymbol)}
+                          </div>
+                        </div>
+                      </div>
+
+                      {variance !== 0 ? (
+                        <div
+                          className={`rounded-xl border px-3 py-2 text-xs font-medium ${
+                            variance > 0
+                              ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                              : 'border-amber-200 bg-amber-50 text-amber-900'
+                          }`}
+                        >
+                          {variance > 0
+                            ? `Se detectó un sobrante de ${money(variance, currencySymbol)}.`
+                            : `Atención: Se detectó un faltante de ${money(Math.abs(variance), currencySymbol)}.`}
+                        </div>
+                      ) : (
+                        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-800">
+                          La caja se encuentra exactamente cuadrada.
+                        </div>
+                      )}
+
+                      {form.notes ? (
+                        <div className="rounded-xl border border-stone-200 bg-stone-50 p-2.5">
+                          <div className="text-[10px] font-bold uppercase tracking-wider text-stone-500">Notas</div>
+                          <div className="mt-0.5 text-xs text-stone-700">{form.notes}</div>
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })()}
+
+                <div className="flex flex-col-reverse sm:flex-row gap-2 pt-2">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="flex-1"
+                    onClick={() => setConfirmingSession(null)}
+                  >
+                    Volver a revisar
+                  </Button>
+
+                  <Button
+                    type="button"
+                    className="flex-1"
+                    disabled={loadingId === confirmingSession.id}
+                    onClick={() => void executeCloseSession(confirmingSession)}
+                  >
+                    {loadingId === confirmingSession.id ? 'Cerrando caja...' : 'Confirmar y cerrar'}
+                  </Button>
+                </div>
+              </div>
+            </div>,
+            document.body
+          )
+        : null}
     </div>
   );
 }
