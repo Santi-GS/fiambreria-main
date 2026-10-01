@@ -112,6 +112,8 @@ export default function RegisterCloseManager({
   const [error, setError] = useState('');
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [movementLoadingId, setMovementLoadingId] = useState<string | null>(null);
+  const [movementErrors, setMovementErrors] = useState<Record<string, { amount?: boolean; note?: boolean }>>({});
+  const [deletingMovementId, setDeletingMovementId] = useState<string | null>(null);
   const [confirmingSession, setConfirmingSession] = useState<SerializedActiveCashSession | null>(null);
 
   const sessionCountLabel = useMemo(
@@ -195,19 +197,55 @@ export default function RegisterCloseManager({
     });
   }
 
+  function handleMovementAmountChange(sessionId: string, value: string) {
+    updateForm(sessionId, { movementAmount: value });
+    if (movementErrors[sessionId]?.amount) {
+      setMovementErrors((prev) => ({
+        ...prev,
+        [sessionId]: { ...prev[sessionId], amount: false }
+      }));
+    }
+  }
+
+  function handleMovementNoteChange(sessionId: string, value: string) {
+    updateForm(sessionId, { movementNote: value });
+    if (movementErrors[sessionId]?.note) {
+      setMovementErrors((prev) => ({
+        ...prev,
+        [sessionId]: { ...prev[sessionId], note: false }
+      }));
+    }
+  }
+
   async function recordMovement(session: SerializedActiveCashSession) {
     const form = forms[session.id];
     setError('');
 
-    if (!form?.movementAmount || Number(form.movementAmount) <= 0) {
-      setError('Ingrese un monto de movimiento de efectivo mayor a cero.');
+    const amountMissing = !form?.movementAmount || Number(form.movementAmount) <= 0;
+    const noteMissing = !form?.movementNote?.trim();
+
+    if (amountMissing || noteMissing) {
+      setMovementErrors((prev) => ({
+        ...prev,
+        [session.id]: {
+          amount: amountMissing,
+          note: noteMissing
+        }
+      }));
+      setError(
+        amountMissing && noteMissing
+          ? 'Ingrese el monto y el motivo del movimiento de efectivo.'
+          : amountMissing
+            ? 'Ingrese un monto de movimiento de efectivo mayor a cero.'
+            : 'Agregue una nota para que el movimiento de efectivo sea auditable.'
+      );
       return;
     }
 
-    if (!form.movementNote.trim()) {
-      setError('Agregue una nota para que el movimiento de efectivo sea auditable.');
-      return;
-    }
+    setMovementErrors((prev) => ({
+      ...prev,
+      [session.id]: { amount: false, note: false }
+    }));
 
     setMovementLoadingId(session.id);
 
@@ -241,6 +279,42 @@ export default function RegisterCloseManager({
       )
     );
     updateForm(session.id, { movementAmount: '', movementNote: '' });
+  }
+
+  async function removeMovement(session: SerializedActiveCashSession, movementId: string) {
+    if (!window.confirm('¿Desea quitar este movimiento de efectivo del turno?')) {
+      return;
+    }
+
+    setError('');
+    setDeletingMovementId(movementId);
+
+    const response = await fetch(
+      `/api/register/sessions/${session.id}/movements?movementId=${encodeURIComponent(movementId)}`,
+      {
+        method: 'DELETE'
+      }
+    );
+
+    const data = await response.json().catch(() => ({ error: 'No se pudo quitar el movimiento de efectivo.' }));
+    setDeletingMovementId(null);
+
+    if (!response.ok || !data?.summary) {
+      setError(data?.error ?? 'No se pudo quitar el movimiento de efectivo.');
+      return;
+    }
+
+    setSessions((current) =>
+      current.map((entry) =>
+        entry.id === session.id
+          ? {
+              ...entry,
+              expectedCash: data.summary.expectedCash,
+              summary: data.summary
+            }
+          : entry
+      )
+    );
   }
 
   function initiateCloseSession(session: SerializedActiveCashSession) {
@@ -652,7 +726,7 @@ export default function RegisterCloseManager({
                   </div>
 
                   {/* Formulario de movimiento alineado */}
-                  <div className="grid gap-2.5 sm:grid-cols-[1fr_0.9fr_1.4fr_auto]">
+                  <div className="grid gap-2.5 sm:grid-cols-[1fr_0.9fr_1.4fr_auto] items-start">
                     <select
                       className="h-11 rounded-2xl border border-stone-200 bg-white px-3 text-sm text-stone-900 outline-none focus:border-emerald-500"
                       value={form.movementType}
@@ -665,20 +739,39 @@ export default function RegisterCloseManager({
                       ))}
                     </select>
 
-                    <Input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      placeholder="Monto"
-                      value={form.movementAmount}
-                      onChange={(event) => updateForm(session.id, { movementAmount: event.target.value })}
-                    />
+                    <div>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        inputMode="decimal"
+                        placeholder="Monto"
+                        value={form.movementAmount}
+                        onChange={(event) => handleMovementAmountChange(session.id, event.target.value)}
+                        className={`[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
+                          movementErrors[session.id]?.amount ? '!border-red-500 !bg-red-50/50' : ''
+                        }`}
+                      />
+                      {movementErrors[session.id]?.amount ? (
+                        <div className="mt-1 text-[11px] font-semibold text-red-600">
+                          Ingrese el monto
+                        </div>
+                      ) : null}
+                    </div>
 
-                    <Input
-                      placeholder="Motivo o concepto"
-                      value={form.movementNote}
-                      onChange={(event) => updateForm(session.id, { movementNote: event.target.value })}
-                    />
+                    <div>
+                      <Input
+                        placeholder="Motivo o concepto"
+                        value={form.movementNote}
+                        onChange={(event) => handleMovementNoteChange(session.id, event.target.value)}
+                        className={movementErrors[session.id]?.note ? '!border-red-500 !bg-red-50/50' : ''}
+                      />
+                      {movementErrors[session.id]?.note ? (
+                        <div className="mt-1 text-[11px] font-semibold text-red-600">
+                          Ingrese el motivo
+                        </div>
+                      ) : null}
+                    </div>
 
                     <Button
                       type="button"
@@ -780,11 +873,19 @@ export default function RegisterCloseManager({
                       session.summary.timeline.map((entry) => {
                         const translatedLabel = getRegisterTimelineDisplayLabel(entry.type, entry.label);
                         const isPositive = Number(entry.amount) >= 0;
+                        const isMovement =
+                          entry.type === 'PAYOUT' ||
+                          entry.type === 'CASH_DROP' ||
+                          entry.type === 'PETTY_CASH' ||
+                          entry.type === 'MANUAL_CORRECTION';
+                        const rawMovementId = entry.id.startsWith('movement-')
+                          ? entry.id.replace('movement-', '')
+                          : entry.id;
 
                         return (
                           <div
                             key={entry.id}
-                            className="rounded-xl border border-stone-150 bg-stone-50 px-3.5 py-2.5 transition"
+                            className="rounded-xl border border-stone-200 bg-stone-50 px-3.5 py-2.5 transition"
                           >
                             <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
                               <div>
@@ -792,6 +893,17 @@ export default function RegisterCloseManager({
                                   <Badge tone={movementTone(entry.type)}>{translatedLabel}</Badge>
                                   {entry.reference ? (
                                     <span className="text-xs text-stone-500">#{entry.reference}</span>
+                                  ) : null}
+                                  {isMovement ? (
+                                    <button
+                                      type="button"
+                                      disabled={deletingMovementId === rawMovementId}
+                                      onClick={() => void removeMovement(session, rawMovementId)}
+                                      className="rounded-lg border border-red-200 bg-red-50 px-2 py-0.5 text-xs font-bold text-red-700 hover:bg-red-100 transition active:scale-95 disabled:opacity-50"
+                                      title="Quitar este movimiento de efectivo antes de cerrar la caja"
+                                    >
+                                      {deletingMovementId === rawMovementId ? 'Quitando...' : 'Quitar'}
+                                    </button>
                                   ) : null}
                                 </div>
                                 <div className="mt-1 text-xs text-stone-500 font-medium">

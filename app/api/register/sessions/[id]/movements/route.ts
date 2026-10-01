@@ -121,3 +121,104 @@ export async function POST(
     return apiErrorResponse(error, 'No se pudo registrar el movimiento de efectivo.');
   }
 }
+
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    const { shopId, userId, role } = await requireRole('CASHIER');
+    const { searchParams } = new URL(request.url);
+    const body = await request.json().catch(() => ({}));
+    const movementId = searchParams.get('movementId') ?? body?.movementId;
+
+    if (!movementId || typeof movementId !== 'string') {
+      return NextResponse.json(
+        { error: 'Debe especificar el ID del movimiento de efectivo a quitar.' },
+        { status: 400 }
+      );
+    }
+
+    const cashSession = await prisma.cashSession.findFirst({
+      where: {
+        id,
+        shopId
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true
+          }
+        }
+      }
+    });
+
+    if (!cashSession) {
+      return NextResponse.json({ error: 'Sesión de caja no encontrada.' }, { status: 404 });
+    }
+
+    if (cashSession.status !== 'OPEN') {
+      return NextResponse.json(
+        { error: 'Los movimientos de efectivo solo pueden eliminarse de una sesión de caja abierta.' },
+        { status: 409 }
+      );
+    }
+
+    if (cashSession.userId !== userId && role === 'CASHIER') {
+      return NextResponse.json(
+        { error: 'Solo un encargado o administrador puede quitar movimientos del turno de otro cajero.' },
+        { status: 403 }
+      );
+    }
+
+    const movement = await prisma.cashMovement.findFirst({
+      where: {
+        id: movementId,
+        cashSessionId: cashSession.id,
+        shopId
+      }
+    });
+
+    if (!movement) {
+      return NextResponse.json(
+        { error: 'El movimiento de efectivo no existe o ya fue eliminado.' },
+        { status: 404 }
+      );
+    }
+
+    const summary = await prisma.$transaction(async (tx) => {
+      await tx.cashMovement.delete({
+        where: { id: movement.id }
+      });
+
+      await logActivity({
+        tx,
+        shopId,
+        userId,
+        action: 'REGISTER_CASH_MOVEMENT_DELETED',
+        entityType: 'CashSession',
+        entityId: cashSession.id,
+        description: `Eliminó movimiento de ${getCashMovementLabel(movement.type).toLowerCase()} (${movement.amount}) de la sesión de ${cashSession.user.name ?? cashSession.user.email ?? 'cajero'}.`,
+        metadata: {
+          cashierUserId: cashSession.userId,
+          movementId: movement.id,
+          type: movement.type,
+          amount: movement.amount,
+          note: movement.note
+        }
+      });
+
+      return buildCashSessionSummary(tx, cashSession, new Date());
+    });
+
+    return NextResponse.json({
+      ok: true,
+      summary: serializeRegisterSessionSummary(summary)
+    });
+  } catch (error) {
+    return apiErrorResponse(error, 'No se pudo quitar el movimiento de efectivo.');
+  }
+}
