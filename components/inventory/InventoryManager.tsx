@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import AdjustmentForm from '@/components/inventory/AdjustmentForm';
 import InventoryMovementTable from '@/components/inventory/InventoryMovementTable';
 import ProductBatchManager from '@/components/inventory/ProductBatchManager';
@@ -124,6 +124,8 @@ type ReorderSuggestions = {
   groups: ReorderGroup[];
 };
 
+type InventoryTab = 'movements' | 'adjustments' | 'batches' | 'reorder';
+
 export default function InventoryManager({
   products,
   reasons,
@@ -148,10 +150,22 @@ export default function InventoryManager({
     expiryAlertDays: number;
   };
 }) {
+  const [activeTab, setActiveTab] = useState<InventoryTab>('movements');
   const [busySupplierId, setBusySupplierId] = useState<string | null>(null);
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
   const [createdSupplierIds, setCreatedSupplierIds] = useState<string[]>([]);
+
+  // Count of batches with expiry alerts
+  const expiryAlertCount = useMemo(() => {
+    const now = new Date();
+    return batches.filter((b) => {
+      if (!b.expiryDate || b.quantity <= 0) return false;
+      const expiry = new Date(b.expiryDate);
+      const diffDays = Math.ceil((expiry.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+      return diffDays <= inventoryFeatures.expiryAlertDays;
+    }).length;
+  }, [batches, inventoryFeatures.expiryAlertDays]);
 
   async function createSuggestedPurchase(group: ReorderGroup) {
     if (!group.supplierId) {
@@ -192,135 +206,299 @@ export default function InventoryManager({
   }
 
   return (
-    <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
-      <div className="space-y-6">
+    <div className="space-y-6">
+      {/* Barra de métricas y selector de pestañas táctil a ancho completo */}
+      <Card>
+        <div className="flex flex-col gap-5">
+          {/* Métricas rápidas táctiles */}
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="rounded-2xl border border-stone-200 bg-stone-50/80 p-3.5 text-center">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-stone-400">Movimientos</div>
+              <div className="mt-1 text-xl font-black text-stone-900">{movements.length}</div>
+              <div className="mt-0.5 text-[11px] text-stone-500">registrados</div>
+            </div>
+
+            <div className="rounded-2xl border border-stone-200 bg-stone-50/80 p-3.5 text-center">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-stone-400">Productos activos</div>
+              <div className="mt-1 text-xl font-black text-stone-900">{products.filter((p) => p.isActive).length}</div>
+              <div className="mt-0.5 text-[11px] text-stone-500">en catálogo</div>
+            </div>
+
+            <div className="rounded-2xl border border-stone-200 bg-stone-50/80 p-3.5 text-center">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-amber-700">Por vencer / alertas</div>
+              <div className="mt-1 text-xl font-black text-amber-700">{expiryAlertCount}</div>
+              <div className="mt-0.5 text-[11px] text-stone-500">lotes prioritarios</div>
+            </div>
+
+            <div className="rounded-2xl border border-stone-200 bg-stone-50/80 p-3.5 text-center">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">Reposición</div>
+              <div className="mt-1 text-xl font-black text-emerald-700">{reorderSuggestions.summary.itemsNeedingAction}</div>
+              <div className="mt-0.5 text-[11px] text-stone-500">sugerencias activas</div>
+            </div>
+          </div>
+
+          {/* Navegación por pestañas a ancho completo con scroll suave y targets amplios (48px) */}
+          <div className="flex overflow-x-auto rounded-2xl border border-stone-200 bg-stone-100/80 p-1.5 gap-1.5 scrollbar-none">
+            <button
+              type="button"
+              onClick={() => setActiveTab('movements')}
+              className={`flex flex-1 min-w-[170px] min-h-[46px] items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-xs font-black transition active:scale-98 whitespace-nowrap ${
+                activeTab === 'movements'
+                  ? 'bg-white text-stone-900 shadow-sm ring-1 ring-stone-950/5'
+                  : 'text-stone-600 hover:text-stone-900 hover:bg-white/60'
+              }`}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+              </svg>
+              Movimientos
+              <span className="rounded-full bg-stone-200 px-1.5 py-0.5 text-[10px] font-bold text-stone-700">
+                {movements.length}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('adjustments')}
+              className={`flex flex-1 min-w-[170px] min-h-[46px] items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-xs font-black transition active:scale-98 whitespace-nowrap ${
+                activeTab === 'adjustments'
+                  ? 'bg-white text-stone-900 shadow-sm ring-1 ring-stone-950/5'
+                  : 'text-stone-600 hover:text-stone-900 hover:bg-white/60'
+              }`}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+              </svg>
+              Correcciones y mermas
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('batches')}
+              className={`flex flex-1 min-w-[170px] min-h-[46px] items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-xs font-black transition active:scale-98 whitespace-nowrap ${
+                activeTab === 'batches'
+                  ? 'bg-white text-stone-900 shadow-sm ring-1 ring-stone-950/5'
+                  : 'text-stone-600 hover:text-stone-900 hover:bg-white/60'
+              }`}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+              </svg>
+              Lotes y vencimientos
+              {expiryAlertCount > 0 ? (
+                <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800">
+                  {expiryAlertCount}
+                </span>
+              ) : null}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('reorder')}
+              className={`flex flex-1 min-w-[170px] min-h-[46px] items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-xs font-black transition active:scale-98 whitespace-nowrap ${
+                activeTab === 'reorder'
+                  ? 'bg-white text-stone-900 shadow-sm ring-1 ring-stone-950/5'
+                  : 'text-stone-600 hover:text-stone-900 hover:bg-white/60'
+              }`}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              Reposición inteligente
+              {reorderSuggestions.summary.itemsNeedingAction > 0 ? (
+                <span className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-800">
+                  {reorderSuggestions.summary.itemsNeedingAction}
+                </span>
+              ) : null}
+            </button>
+          </div>
+        </div>
+      </Card>
+
+      {/* CONTENIDO DE LA PESTAÑA ACTIVA (A ANCHO COMPLETO) */}
+      {/* 1. MOVIMIENTOS */}
+      {activeTab === 'movements' && (
         <Card>
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="mb-5">
+            <h2 className="text-xl font-black text-stone-900">Historial de movimientos de inventario</h2>
+            <p className="mt-1 text-xs sm:text-sm text-stone-500">
+              Auditoría completa de compras, ventas, variaciones de conteo, mermas y ajustes con códigos de motivo.
+            </p>
+          </div>
+          <InventoryMovementTable movements={movements} lowStockThreshold={lowStockThreshold} />
+        </Card>
+      )}
+
+      {/* 2. CORRECCIONES Y MERMAS */}
+      {activeTab === 'adjustments' && (
+        <Card>
+          <div className="mb-5">
+            <h2 className="text-xl font-black text-stone-900">Correcciones de inventario y mermas</h2>
+            <p className="mt-1 text-xs sm:text-sm text-stone-500">
+              Registra bajas extraordinarias, autoconsumo o saldos de inventario inicial con controles táctiles optimizados.
+            </p>
+          </div>
+          <AdjustmentForm products={products} reasons={reasons} />
+        </Card>
+      )}
+
+      {/* 3. LOTES Y VENCIMIENTOS */}
+      {activeTab === 'batches' && (
+        <Card>
+          <ProductBatchManager
+            products={products}
+            initialBatches={batches}
+            inventoryFeatures={inventoryFeatures}
+          />
+        </Card>
+      )}
+
+      {/* 4. REPOSICIÓN INTELIGENTE */}
+      {activeTab === 'reorder' && (
+        <Card>
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between border-b border-stone-100 pb-5">
             <div>
               <h2 className="text-xl font-black text-stone-900">Sugerencias inteligentes de reposición</h2>
-              <p className="mt-2 text-sm text-stone-500">
-                Las cantidades sugeridas combinan la velocidad de venta reciente, el tiempo de entrega del proveedor, el stock de seguridad, las existencias actuales y la urgencia de desabastecimiento.
+              <p className="mt-1 max-w-3xl text-xs sm:text-sm text-stone-500">
+                Las cantidades sugeridas combinan velocidad de venta diaria, tiempo de entrega del proveedor, stock de seguridad y urgencia de desabastecimiento.
               </p>
             </div>
-            <div className="rounded-[24px] border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-600">
-              <div className="font-semibold text-stone-900">{reorderSuggestions.summary.itemsNeedingAction} producto(s) requieren atención</div>
-              <div className="mt-1">
-                {reorderSuggestions.summary.projectedUnits} unidades / {money(reorderSuggestions.summary.projectedCost, currencySymbol)}
+            <div className="rounded-2xl border border-stone-200 bg-stone-50 p-3.5 text-xs text-stone-600 sm:text-right">
+              <div className="font-bold text-stone-900">{reorderSuggestions.summary.itemsNeedingAction} producto(s) para reposición</div>
+              <div className="mt-0.5">
+                {reorderSuggestions.summary.projectedUnits} unidades proyectadas ({money(reorderSuggestions.summary.projectedCost, currencySymbol)})
               </div>
             </div>
           </div>
 
-          <div className="mt-4 grid gap-4 md:grid-cols-3">
-            <div className="rounded-2xl border border-stone-200 bg-white px-4 py-3">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-stone-400">Stock de seguridad</div>
-              <div className="mt-2 text-2xl font-black text-stone-950">{reorderSuggestions.safetyStock}</div>
-              <div className="mt-1 text-xs text-stone-500">predeterminado de la sucursal</div>
+          <div className="mt-5 grid gap-4 sm:grid-cols-3">
+            <div className="rounded-2xl border border-stone-200 bg-stone-50/70 p-4">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-stone-400">Stock de seguridad</div>
+              <div className="mt-1.5 text-2xl font-black text-stone-950">{reorderSuggestions.safetyStock}</div>
+              <div className="mt-0.5 text-xs text-stone-500">predeterminado de sucursal</div>
             </div>
-            <div className="rounded-2xl border border-stone-200 bg-white px-4 py-3">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-stone-400">Proveedores afectados</div>
-              <div className="mt-2 text-2xl font-black text-stone-950">{reorderSuggestions.summary.suppliersImpacted}</div>
-              <div className="mt-1 text-xs text-stone-500">con recomendaciones convertibles en borrador</div>
+            <div className="rounded-2xl border border-stone-200 bg-stone-50/70 p-4">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-stone-400">Proveedores involucrados</div>
+              <div className="mt-1.5 text-2xl font-black text-stone-950">{reorderSuggestions.summary.suppliersImpacted}</div>
+              <div className="mt-0.5 text-xs text-stone-500">con recomendaciones listas</div>
             </div>
-            <div className="rounded-2xl border border-stone-200 bg-white px-4 py-3">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-stone-400">Generado</div>
-              <div className="mt-2 text-lg font-black text-stone-950">
+            <div className="rounded-2xl border border-stone-200 bg-stone-50/70 p-4">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-stone-400">Última actualización</div>
+              <div className="mt-1.5 text-lg font-black text-stone-950">
                 {new Date(reorderSuggestions.generatedAt).toLocaleDateString('es-ES')}
               </div>
-              <div className="mt-1 text-xs text-stone-500">resumen actual del inventario</div>
+              <div className="mt-0.5 text-xs text-stone-500">análisis predictivo activo</div>
             </div>
           </div>
 
           {success ? (
-            <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-              {success} <Link href="/purchases" className="font-semibold underline">Abrir compras</Link>
-            </div>
-          ) : null}
-          {error ? (
-            <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-              {error}
+            <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-xs font-semibold text-emerald-800 flex items-center justify-between">
+              <span>✓ {success}</span>
+              <Link href="/purchases" className="font-bold underline">
+                Ver en Compras →
+              </Link>
             </div>
           ) : null}
 
-          <div className="mt-6 space-y-4">
+          {error ? (
+            <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-xs font-semibold text-red-700">
+              ⚠️ {error}
+            </div>
+          ) : null}
+
+          <div className="mt-6 space-y-5">
             {reorderSuggestions.groups.length ? (
               reorderSuggestions.groups.map((group) => {
                 const alreadyCreated = Boolean(group.supplierId && createdSupplierIds.includes(group.supplierId));
 
                 return (
-                  <div key={`${group.supplierId ?? 'none'}-${group.supplierName}`} className="rounded-[28px] border border-stone-200 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,250,252,0.88))] p-5">
-                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                  <div
+                    key={`${group.supplierId ?? 'none'}-${group.supplierName}`}
+                    className="rounded-[28px] border border-stone-200 bg-stone-50/60 p-4 sm:p-6 space-y-4"
+                  >
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-stone-200 pb-4">
                       <div>
-                        <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-stone-400">
-                          Paquete de reposición del proveedor
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">
+                          Paquete de reposición de proveedor
                         </div>
-                        <h3 className="mt-2 text-lg font-black text-stone-900">{group.supplierName}</h3>
-                        <div className="mt-1 text-sm text-stone-500">
-                          {group.items.length} línea(s) / {group.totalUnits} unidad(es) / {money(group.totalCost, currencySymbol)}
+                        <h3 className="mt-1 text-lg font-black text-stone-900">{group.supplierName}</h3>
+                        <div className="mt-0.5 text-xs text-stone-500">
+                          {group.items.length} ítem(s) • {group.totalUnits} unidades • {money(group.totalCost, currencySymbol)}
                         </div>
                       </div>
+
                       {group.supplierId ? (
                         <Button
                           type="button"
                           onClick={() => createSuggestedPurchase(group)}
                           disabled={busySupplierId === group.supplierId || alreadyCreated}
+                          className="h-11 px-5 text-xs font-bold self-start sm:self-auto shadow-xs active:scale-95"
                         >
                           {alreadyCreated
-                            ? 'Borrador creado'
+                            ? '✓ Borrador creado'
                             : busySupplierId === group.supplierId
                               ? 'Creando borrador...'
-                              : 'Crear borrador de orden'}
+                              : 'Generar borrador de orden'}
                         </Button>
                       ) : (
-                        <div className="rounded-full border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-700">
-                          Historial de proveedor requerido
-                        </div>
+                        <span className="rounded-full bg-amber-100 px-3 py-1.5 text-xs font-bold text-amber-800">
+                          Sin proveedor asignado
+                        </span>
                       )}
                     </div>
 
-                    <div className="mt-4 space-y-3">
+                    <div className="space-y-3">
                       {group.items.map((item) => (
-                        <div key={item.productId} className="rounded-2xl border border-stone-200 bg-white px-4 py-4">
-                          <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
+                        <div
+                          key={item.productId}
+                          className="rounded-[22px] border border-stone-200 bg-white p-4 shadow-2xs"
+                        >
+                          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                             <div>
-                              <div className="font-semibold text-stone-900">{item.productName}</div>
-                              <div className="mt-1 text-xs text-stone-500">
-                                {item.sku ? `${item.sku} / ` : ''}
-                                {item.baseUnitName}
+                              <div className="font-bold text-stone-900 text-sm sm:text-base">{item.productName}</div>
+                              <div className="text-xs text-stone-500">
+                                {item.sku ? `SKU: ${item.sku} • ` : ''}
+                                Unidad base: {item.baseUnitName}
                               </div>
                             </div>
-                            <div className="text-right">
-                              <div className="text-xl font-black text-stone-950">{item.suggestedQty}</div>
-                              <div className="text-xs text-stone-500">cant. sugerida</div>
+                            <div className="sm:text-right">
+                              <span className="text-xs text-stone-500 mr-2 sm:block sm:mr-0">Cant. sugerida:</span>
+                              <span className="text-xl font-black text-emerald-700">{item.suggestedQty}</span>
                             </div>
                           </div>
-                          <div className="mt-4 grid gap-3 md:grid-cols-3 xl:grid-cols-6">
-                            <div className="rounded-2xl bg-stone-50 px-3 py-2 text-xs text-stone-500">
-                              <div className="font-semibold text-stone-900">En mano</div>
-                              <div className="mt-1">{item.currentStock}</div>
+
+                          {/* 6 Métricas clave a ancho completo, sin compresión ni desfasaje */}
+                          <div className="mt-3.5 grid gap-2.5 grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
+                            <div className="rounded-xl border border-stone-100 bg-stone-50 p-2.5">
+                              <div className="text-[10px] font-bold uppercase text-stone-400">En mano</div>
+                              <div className="mt-1 font-mono text-sm font-black text-stone-900">{item.currentStock}</div>
                             </div>
-                            <div className="rounded-2xl bg-stone-50 px-3 py-2 text-xs text-stone-500">
-                              <div className="font-semibold text-stone-900">Velocidad</div>
-                              <div className="mt-1">{item.avgDailySales.toFixed(1)} / día</div>
+                            <div className="rounded-xl border border-stone-100 bg-stone-50 p-2.5">
+                              <div className="text-[10px] font-bold uppercase text-stone-400">Velocidad</div>
+                              <div className="mt-1 font-mono text-sm font-black text-stone-900">{item.avgDailySales.toFixed(1)} / día</div>
                             </div>
-                            <div className="rounded-2xl bg-stone-50 px-3 py-2 text-xs text-stone-500">
-                              <div className="font-semibold text-stone-900">Tiempo de entrega</div>
-                              <div className="mt-1">{item.leadTimeDays} día(s)</div>
+                            <div className="rounded-xl border border-stone-100 bg-stone-50 p-2.5">
+                              <div className="text-[10px] font-bold uppercase text-stone-400">Tiempo entrega</div>
+                              <div className="mt-1 font-mono text-sm font-black text-stone-900">{item.leadTimeDays} día(s)</div>
                             </div>
-                            <div className="rounded-2xl bg-stone-50 px-3 py-2 text-xs text-stone-500">
-                              <div className="font-semibold text-stone-900">Punto de reposición</div>
-                              <div className="mt-1">{item.reorderPoint}</div>
+                            <div className="rounded-xl border border-stone-100 bg-stone-50 p-2.5">
+                              <div className="text-[10px] font-bold uppercase text-stone-400">Pto. reposición</div>
+                              <div className="mt-1 font-mono text-sm font-black text-stone-900">{item.reorderPoint}</div>
                             </div>
-                            <div className="rounded-2xl bg-stone-50 px-3 py-2 text-xs text-stone-500">
-                              <div className="font-semibold text-stone-900">Desabastecimientos</div>
-                              <div className="mt-1">{item.stockoutEvents}</div>
+                            <div className="rounded-xl border border-stone-100 bg-stone-50 p-2.5">
+                              <div className="text-[10px] font-bold uppercase text-stone-400">Quiebres stock</div>
+                              <div className="mt-1 font-mono text-sm font-black text-stone-900">{item.stockoutEvents}</div>
                             </div>
-                            <div className="rounded-2xl bg-stone-50 px-3 py-2 text-xs text-stone-500">
-                              <div className="font-semibold text-stone-900">Costo proyectado</div>
-                              <div className="mt-1">{money(item.suggestedCost, currencySymbol)}</div>
+                            <div className="rounded-xl border border-stone-100 bg-stone-50 p-2.5">
+                              <div className="text-[10px] font-bold uppercase text-stone-400">Costo proyectado</div>
+                              <div className="mt-1 font-mono text-sm font-black text-stone-900 whitespace-nowrap">
+                                {money(item.suggestedCost, currencySymbol)}
+                              </div>
                             </div>
                           </div>
-                          <div className="mt-3 text-xs text-stone-500">
-                            Rotación: {item.sellThroughPercent.toFixed(1)}% / stock objetivo: {item.targetStock} / stock de seguridad: {item.safetyStock}
+
+                          <div className="mt-2.5 text-[11px] text-stone-400">
+                            Rotación: <strong>{item.sellThroughPercent.toFixed(1)}%</strong> • Stock objetivo: <strong>{item.targetStock}</strong> • Seguridad: <strong>{item.safetyStock}</strong>
                           </div>
                         </div>
                       ))}
@@ -329,41 +507,13 @@ export default function InventoryManager({
                 );
               })
             ) : (
-              <div className="rounded-[24px] border border-dashed border-stone-300 bg-stone-50 p-5 text-sm text-stone-500">
-                Ningún producto requiere un borrador de reposición en este momento.
+              <div className="rounded-[24px] border border-dashed border-stone-300 bg-stone-50 p-8 text-center text-xs font-semibold text-stone-500">
+                Ningún producto requiere orden de reposición en este momento.
               </div>
             )}
           </div>
         </Card>
-
-        <Card>
-          <h2 id="adjust-stock" className="text-xl font-black text-stone-900">Correcciones de inventario y mermas</h2>
-          <p className="mt-2 text-sm text-stone-500">
-            Usa esta pantalla únicamente para correcciones excepcionales. Los conteos de inventario, devoluciones a proveedores, reposiciones por devoluciones de clientes y transferencias de sucursal son los flujos preferidos siempre que correspondan.
-          </p>
-          <div className="mt-6">
-            <AdjustmentForm products={products} reasons={reasons} />
-          </div>
-        </Card>
-
-        <Card>
-          <ProductBatchManager
-            products={products}
-            initialBatches={batches}
-            inventoryFeatures={inventoryFeatures}
-          />
-        </Card>
-      </div>
-
-      <Card>
-        <h2 className="text-xl font-black text-stone-900">Historial de movimientos de inventario</h2>
-        <p className="mt-2 text-sm text-stone-500">
-          Supervisa compras, ventas, variaciones de conteo, transferencias, devoluciones a proveedores y correcciones de inventario con códigos de motivo y contexto de stock bajo.
-        </p>
-        <div className="mt-6">
-          <InventoryMovementTable movements={movements} lowStockThreshold={lowStockThreshold} />
-        </div>
-      </Card>
+      )}
     </div>
   );
 }

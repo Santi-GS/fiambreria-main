@@ -79,6 +79,9 @@ function batchStatusLabel(batch: ProductBatch, expiryAlertDays: number) {
   return 'Activo';
 }
 
+const selectClassName =
+  'h-12 w-full rounded-2xl border border-stone-200 bg-white px-4 text-sm font-medium text-stone-900 shadow-xs outline-none transition hover:border-stone-300 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10';
+
 export default function ProductBatchManager({
   products,
   initialBatches,
@@ -181,118 +184,191 @@ export default function ProductBatchManager({
       setExpiryDate('');
       setQuantity('0');
       setNotes('');
-      setSuccess('Lote guardado con éxito. Las existencias se mantienen a nivel de producto, y los datos del lote respaldan la vista FEFO y la revisión de caducidad.');
+      setSuccess('Lote guardado con éxito. Las existencias se mantienen a nivel de producto y respaldan la rotación FEFO.');
       router.refresh();
     } catch {
       setLoading(false);
-      setError('No se pudo guardar el lote del producto.');
+      setError('Error de conexión al guardar el lote del producto.');
     }
   }
 
   if (!inventoryFeatures.batchTrackingEnabled && !inventoryFeatures.expiryTrackingEnabled) {
     return (
       <div className="rounded-2xl border border-dashed border-stone-300 bg-stone-50 p-6 text-sm text-stone-500">
-        El seguimiento de lotes y caducidad está desactivado para este tipo de negocio.
+        El seguimiento de lotes y caducidad está desactivado para esta sucursal.
       </div>
     );
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
+      {/* Encabezado descriptivo */}
       <div>
-        <h2 className="text-xl font-black text-stone-900">Lotes y vencimientos</h2>
-        <p className="mt-2 text-sm text-stone-500">
-          Mantén visibles los números de lote, cantidades y fechas de caducidad sin alterar el motor de existencias a nivel de producto.
+        <h3 className="text-lg font-black text-stone-900">Gestión de lotes y fechas de vencimiento</h3>
+        <p className="mt-1 text-xs text-stone-500">
+          Supervisa números de lote, cantidades recibidas y caducidad manteniendo la rotación FEFO (First-Expired, First-Out).
         </p>
       </div>
 
+      {/* Tarjetas informativas de FEFO y alertas de caducidad */}
       {inventoryFeatures.expiryTrackingEnabled ? (
         <div className="grid gap-3 sm:grid-cols-2">
-          <div className="rounded-[22px] border border-red-200 bg-red-50 px-4 py-4">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-red-700">Alertas de caducidad</div>
-            <div className="mt-2 text-3xl font-black text-stone-950">{expiryAlerts.length}</div>
-            <div className="mt-1 text-sm text-red-800">Vencidos o por vencer en {inventoryFeatures.expiryAlertDays} día(s)</div>
-          </div>
-          <div className="rounded-[22px] border border-stone-200 bg-stone-50 px-4 py-4">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-stone-400">Modo FEFO</div>
-            <div className="mt-2 text-lg font-black text-stone-950">
-              {inventoryFeatures.fefoEnabled ? 'Priorizado' : 'Disponible'}
+          <div className="rounded-[22px] border border-red-200 bg-red-50 p-4">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-red-700">Alertas de caducidad</div>
+            <div className="mt-1 text-2xl font-black text-stone-950">{expiryAlerts.length}</div>
+            <div className="mt-1 text-xs text-red-800">
+              Vencidos o próximos a vencer en {inventoryFeatures.expiryAlertDays} día(s)
             </div>
-            <div className="mt-1 text-sm text-stone-500">
-              {inventoryFeatures.fefoEnabled ? 'Los lotes se ordenan primero por la fecha de caducidad más cercana.' : 'Los datos de caducidad están visibles para revisión manual.'}
+          </div>
+          <div className="rounded-[22px] border border-stone-200 bg-stone-50 p-4">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-stone-500">Prioridad FEFO</div>
+            <div className="mt-1 text-base font-black text-stone-950">
+              {inventoryFeatures.fefoEnabled ? '✓ Modo FEFO activado' : 'Revisión manual'}
+            </div>
+            <div className="mt-1 text-xs text-stone-500">
+              {inventoryFeatures.fefoEnabled
+                ? 'Los productos se despachan priorizando la fecha de caducidad más cercana.'
+                : 'Los lotes están disponibles para consulta manual.'}
             </div>
           </div>
         </div>
       ) : null}
 
-      <form onSubmit={createBatch} className="space-y-4 rounded-[24px] border border-stone-200 bg-stone-50/80 p-4">
-        <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-stone-400">Registrar lote con seguimiento</div>
-        <div className="grid gap-3 md:grid-cols-2">
-          <select
-            className="h-11 rounded-2xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition focus:border-emerald-500"
-            value={productId}
-            onChange={(event) => setProductId(event.target.value)}
-          >
-            <option value="">Seleccionar producto con seguimiento</option>
-            {trackedProducts.map((product) => (
-              <option key={product.id} value={product.id}>
-                {product.name} / {product.sku ?? 'Sin SKU'}
-              </option>
-            ))}
-          </select>
-          <Input placeholder="Número de lote" value={lotNumber} onChange={(event) => setLotNumber(event.target.value)} />
-          <Input type="date" value={expiryDate} onChange={(event) => setExpiryDate(event.target.value)} />
-          <Input type="number" min="0" placeholder="Cantidad en lote" value={quantity} onChange={(event) => setQuantity(event.target.value)} />
+      {/* Formulario de registro de lote táctil */}
+      <form onSubmit={createBatch} className="space-y-4 rounded-[26px] border border-stone-200 bg-stone-50/70 p-4 sm:p-5">
+        <div className="text-xs font-bold uppercase tracking-wider text-stone-600">
+          Registrar nuevo lote
         </div>
-        <Input placeholder="Notas de respaldo (opcional)" value={notes} onChange={(event) => setNotes(event.target.value)} />
+
+        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+          <div className="md:col-span-2">
+            <label className="mb-1.5 block text-xs font-semibold text-stone-700">Producto</label>
+            <select
+              className={selectClassName}
+              value={productId}
+              onChange={(event) => setProductId(event.target.value)}
+            >
+              <option value="">Seleccionar producto con seguimiento</option>
+              {trackedProducts.map((product) => (
+                <option key={product.id} value={product.id}>
+                  {product.name} ({product.sku ?? 'Sin SKU'})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-xs font-semibold text-stone-700">N° de lote</label>
+            <Input
+              placeholder="Ej: LOTE-2026-A"
+              value={lotNumber}
+              onChange={(event) => setLotNumber(event.target.value)}
+              className="h-12"
+            />
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-xs font-semibold text-stone-700">Fecha de caducidad</label>
+            <Input
+              type="date"
+              value={expiryDate}
+              onChange={(event) => setExpiryDate(event.target.value)}
+              className="h-12"
+            />
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-xs font-semibold text-stone-700">Cantidad en lote</label>
+            <Input
+              type="number"
+              min="0"
+              placeholder="0"
+              value={quantity}
+              onChange={(event) => setQuantity(event.target.value)}
+              className="h-12"
+            />
+          </div>
+
+          <div className="md:col-span-2 lg:col-span-3">
+            <label className="mb-1.5 block text-xs font-semibold text-stone-700">Notas de respaldo (opcional)</label>
+            <Input
+              placeholder="Proveedor, temperatura de recepción, etc."
+              value={notes}
+              onChange={(event) => setNotes(event.target.value)}
+              className="h-12"
+            />
+          </div>
+        </div>
 
         {selectedProduct ? (
-          <div className="rounded-2xl border border-stone-200 bg-white px-4 py-3 text-sm text-stone-600">
-            <span className="font-semibold text-stone-900">{selectedProduct.name}</span>
-            {' / '}Stock del producto: <span className="font-semibold text-stone-900">{selectedProduct.stockQty}</span>
-            {' / '}Seguimiento: <span className="font-semibold text-stone-900">{selectedProduct.trackExpiry ? 'Lote + caducidad' : 'Solo lote'}</span>
+          <div className="rounded-2xl border border-stone-200 bg-white p-3 text-xs text-stone-600 flex flex-wrap items-center gap-2">
+            <span className="font-bold text-stone-900">{selectedProduct.name}</span>
+            <span>•</span>
+            <span>Stock total: <strong className="text-stone-900">{selectedProduct.stockQty}</strong></span>
+            <span>•</span>
+            <span className="text-stone-500">
+              Tipo: {selectedProduct.trackExpiry ? 'Lote + Vencimiento' : 'Solo Lote'}
+            </span>
           </div>
         ) : null}
 
-        {error ? <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div> : null}
-        {success ? <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{success}</div> : null}
+        {error ? (
+          <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-semibold text-red-700">
+            ⚠️ {error}
+          </div>
+        ) : null}
 
-        <Button type="submit" disabled={loading || !trackedProducts.length}>
+        {success ? (
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs font-semibold text-emerald-700">
+            ✓ {success}
+          </div>
+        ) : null}
+
+        <Button type="submit" disabled={loading || !trackedProducts.length} className="h-12 px-6 font-bold">
           {loading ? 'Guardando lote...' : 'Guardar lote'}
         </Button>
       </form>
 
-      <div className="overflow-hidden rounded-[24px] border border-stone-200">
+      {/* Tabla de lotes a ancho completo */}
+      <div className="overflow-hidden rounded-[24px] border border-stone-200 bg-white">
         <div className="overflow-x-auto">
           <table className="min-w-full text-left text-sm">
-            <thead className="bg-stone-50 text-stone-500">
+            <thead className="bg-stone-50/80 text-stone-500">
               <tr>
-                <th className="px-4 py-3.5">Producto</th>
-                <th className="px-4 py-3.5">Lote</th>
-                <th className="px-4 py-3.5">Caducidad</th>
-                <th className="px-4 py-3.5">Cant.</th>
-                <th className="px-4 py-3.5">Estado</th>
-                <th className="px-4 py-3.5">Recepción</th>
+                <th className="px-4 py-3.5 text-xs font-bold uppercase tracking-wider">Producto</th>
+                <th className="px-4 py-3.5 text-xs font-bold uppercase tracking-wider whitespace-nowrap">Lote</th>
+                <th className="px-4 py-3.5 text-xs font-bold uppercase tracking-wider whitespace-nowrap">Caducidad</th>
+                <th className="px-4 py-3.5 text-xs font-bold uppercase tracking-wider whitespace-nowrap">Cantidad</th>
+                <th className="px-4 py-3.5 text-xs font-bold uppercase tracking-wider whitespace-nowrap">Estado</th>
+                <th className="px-4 py-3.5 text-xs font-bold uppercase tracking-wider whitespace-nowrap">Recepción</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-stone-100">
               {sortedBatches.map((batch) => (
-                <tr key={batch.id} className="border-t border-stone-200 bg-white">
-                  <td className="px-4 py-4">
-                    <div className="font-semibold text-stone-900">{batch.product.name}</div>
-                    <div className="mt-1 text-xs text-stone-500">{batch.product.sku ?? 'Sin SKU'}</div>
+                <tr key={batch.id} className="transition hover:bg-stone-50/70">
+                  <td className="px-4 py-3.5">
+                    <div className="font-bold text-stone-900">{batch.product.name}</div>
+                    <div className="text-[11px] text-stone-500">{batch.product.sku ?? 'Sin SKU'}</div>
                   </td>
-                  <td className="px-4 py-4 font-mono text-xs text-stone-700">{batch.lotNumber}</td>
-                  <td className="px-4 py-4 text-stone-600">{batch.expiryDate ? shortDate(batch.expiryDate) : 'Sin caducidad'}</td>
-                  <td className={`px-4 py-4 font-semibold ${batch.quantity <= 0 ? 'text-stone-500' : 'text-stone-900'}`}>{batch.quantity}</td>
-                  <td className="px-4 py-4">
+                  <td className="px-4 py-3.5 font-mono text-xs font-bold text-stone-700 whitespace-nowrap">
+                    {batch.lotNumber}
+                  </td>
+                  <td className="px-4 py-3.5 text-xs text-stone-600 whitespace-nowrap">
+                    {batch.expiryDate ? shortDate(batch.expiryDate) : <span className="text-stone-400">Sin caducidad</span>}
+                  </td>
+                  <td className={`px-4 py-3.5 font-black text-sm whitespace-nowrap ${
+                    batch.quantity <= 0 ? 'text-stone-400' : 'text-stone-900'
+                  }`}>
+                    {batch.quantity}
+                  </td>
+                  <td className="px-4 py-3.5 whitespace-nowrap">
                     <Badge tone={batchTone(batch, inventoryFeatures.expiryAlertDays)}>
                       {batchStatusLabel(batch, inventoryFeatures.expiryAlertDays)}
                     </Badge>
                   </td>
-                  <td className="px-4 py-4 text-stone-600">
+                  <td className="px-4 py-3.5 text-xs text-stone-600 whitespace-nowrap">
                     <div>{dateTime(batch.receivedAt)}</div>
-                    <div className="mt-1 text-xs text-stone-500">{batch.notes ?? 'Sin notas'}</div>
+                    {batch.notes ? <div className="text-[11px] text-stone-400 truncate max-w-xs">{batch.notes}</div> : null}
                   </td>
                 </tr>
               ))}
@@ -301,8 +377,8 @@ export default function ProductBatchManager({
         </div>
 
         {!sortedBatches.length ? (
-          <div className="border-t border-stone-200 bg-stone-50 py-8 text-center text-sm text-stone-500">
-            No tracked batches recorded yet.
+          <div className="py-10 text-center text-xs font-medium text-stone-500">
+            Aún no hay lotes registrados para los productos con seguimiento.
           </div>
         ) : null}
       </div>

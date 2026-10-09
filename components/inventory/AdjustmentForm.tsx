@@ -37,6 +37,9 @@ type InventoryReason = {
   label: string;
 };
 
+const selectClassName =
+  'h-12 w-full rounded-2xl border border-stone-200 bg-white px-4 text-sm font-medium text-stone-900 shadow-xs outline-none transition hover:border-stone-300 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10';
+
 export default function AdjustmentForm({
   products,
   reasons
@@ -44,7 +47,7 @@ export default function AdjustmentForm({
   products: Product[];
   reasons: InventoryReason[];
 }) {
-  const activeProducts = products.filter((product) => product.isActive);
+  const activeProducts = useMemo(() => products.filter((product) => product.isActive), [products]);
   const [productId, setProductId] = useState(activeProducts[0]?.id ?? '');
   const [reasonId, setReasonId] = useState(reasons[0]?.id ?? '');
   const [adjustmentType, setAdjustmentType] = useState<'ADD' | 'REMOVE'>('ADD');
@@ -53,11 +56,28 @@ export default function AdjustmentForm({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [productFilter, setProductFilter] = useState('');
+
+  const filteredProducts = useMemo(() => {
+    if (!productFilter.trim()) return activeProducts;
+    const term = productFilter.toLowerCase().trim();
+    return activeProducts.filter((p) => p.name.toLowerCase().includes(term));
+  }, [activeProducts, productFilter]);
 
   const selectedProduct = useMemo(
     () => activeProducts.find((product) => product.id === productId),
     [activeProducts, productId]
   );
+
+  function adjustQty(amount: number) {
+    const current = Number(qty) || 0;
+    const next = Math.max(1, current + amount);
+    setQty(String(next));
+  }
+
+  function setDirectQty(amount: number) {
+    setQty(String(amount));
+  }
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -82,7 +102,7 @@ export default function AdjustmentForm({
     }
 
     if (adjustmentType === 'REMOVE' && selectedProduct && parsedQty > selectedProduct.stockQty) {
-      setError('No se puede retirar más stock del disponible actualmente.');
+      setError(`No se puede retirar ${parsedQty} unidades: el stock actual es de solo ${selectedProduct.stockQty}.`);
       return;
     }
 
@@ -113,120 +133,262 @@ export default function AdjustmentForm({
         return;
       }
 
-      setSuccess('Corrección de inventario registrada con éxito. Actualiza la página para ver el inventario más reciente.');
+      setSuccess('Corrección de inventario registrada con éxito. Actualiza o consulta la pestaña de movimientos para verificar.');
       setQty('1');
       setNotes('');
     } catch {
       setLoading(false);
-      setError('No se pudo guardar la corrección de inventario.');
+      setError('Error de conexión al procesar la corrección de inventario.');
     }
   }
 
   return (
-    <form onSubmit={onSubmit} className="space-y-5">
+    <form onSubmit={onSubmit} className="space-y-6 max-w-4xl">
       {!activeProducts.length ? (
-        <div className="rounded-2xl border border-dashed border-stone-300 bg-stone-50 px-4 py-5 text-sm text-stone-600">
-          <div className="font-semibold text-stone-900">Aún no hay productos listos para correcciones de inventario.</div>
-          <div className="mt-2">Crea productos primero; luego usa esta pantalla únicamente para correcciones excepcionales que no correspondan a conteos, devoluciones a proveedores ni transferencias entre sucursales.</div>
-          <div className="mt-3 flex flex-wrap gap-3">
-            <Link href="/products" className="font-semibold text-emerald-700 hover:text-emerald-800">
-              Abrir productos
+        <div className="rounded-[24px] border border-dashed border-stone-300 bg-stone-50 p-6 text-sm text-stone-600">
+          <div className="font-bold text-stone-900">Aún no hay productos activos listos para correcciones.</div>
+          <div className="mt-2 text-xs text-stone-500">Crea productos en el catálogo antes de registrar correcciones o mermas.</div>
+          <div className="mt-4 flex flex-wrap gap-3">
+            <Link href="/products" className="font-bold text-emerald-700 hover:text-emerald-800 text-xs">
+              Ir a Productos
             </Link>
-            <Link href="/stock-counts" className="font-semibold text-stone-700 hover:text-stone-900">
-              Iniciar un conteo de inventario
+            <Link href="/stock-counts" className="font-bold text-stone-700 hover:text-stone-900 text-xs">
+              Iniciar conteo de inventario
             </Link>
           </div>
         </div>
       ) : null}
 
+      {/* 1. Tipo de corrección táctil (Botones Segmentados Grandes) */}
       <div>
-        <label className="mb-2 block text-sm font-semibold text-stone-700">Producto</label>
-        <select
-          className="w-full rounded-xl border border-stone-300 bg-stone-50 px-4 py-3 text-sm outline-none transition focus:border-emerald-500 focus:bg-white"
-          value={productId}
-          onChange={(event) => setProductId(event.target.value)}
-        >
-          {activeProducts.map((product) => (
-            <option key={product.id} value={product.id}>
-              {product.name} | Stock actual: {product.stockQty}
-            </option>
-          ))}
-        </select>
+        <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-stone-600">
+          Tipo de Corrección
+        </label>
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            type="button"
+            onClick={() => setAdjustmentType('ADD')}
+            className={`flex min-h-[54px] items-center justify-center gap-2.5 rounded-2xl border p-3 text-sm font-black transition active:scale-98 ${
+              adjustmentType === 'ADD'
+                ? 'border-emerald-500 bg-emerald-50 text-emerald-800 shadow-sm ring-2 ring-emerald-500/20'
+                : 'border-stone-200 bg-white text-stone-600 hover:border-stone-300 hover:bg-stone-50'
+            }`}
+          >
+            <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-emerald-600 text-white font-bold text-base">
+              +
+            </span>
+            <div className="text-left">
+              <div className="leading-tight">Agregar stock</div>
+              <div className="text-[10px] font-medium text-emerald-700">Incrementa existencias</div>
+            </div>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setAdjustmentType('REMOVE')}
+            className={`flex min-h-[54px] items-center justify-center gap-2.5 rounded-2xl border p-3 text-sm font-black transition active:scale-98 ${
+              adjustmentType === 'REMOVE'
+                ? 'border-red-500 bg-red-50 text-red-800 shadow-sm ring-2 ring-red-500/20'
+                : 'border-stone-200 bg-white text-stone-600 hover:border-stone-300 hover:bg-stone-50'
+            }`}
+          >
+            <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-red-600 text-white font-bold text-base">
+              −
+            </span>
+            <div className="text-left">
+              <div className="leading-tight">Retirar stock (Merma)</div>
+              <div className="text-[10px] font-medium text-red-700">Disminuye existencias</div>
+            </div>
+          </button>
+        </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div>
-          <label className="mb-2 block text-sm font-semibold text-stone-700">Tipo de corrección</label>
-          <select
-            className="w-full rounded-xl border border-stone-300 bg-stone-50 px-4 py-3 text-sm outline-none transition focus:border-emerald-500 focus:bg-white"
-            value={adjustmentType}
-            onChange={(event) => setAdjustmentType(event.target.value as 'ADD' | 'REMOVE')}
-          >
-            <option value="ADD">Agregar stock</option>
-            <option value="REMOVE">Retirar stock</option>
-          </select>
+      {/* 2. Selector de Producto con filtro rápido */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <label className="block text-xs font-bold uppercase tracking-wider text-stone-600">
+            Producto a ajustar
+          </label>
+          <span className="text-[11px] text-stone-400">{activeProducts.length} producto(s) disponibles</span>
         </div>
 
-        <div>
-          <label className="mb-2 block text-sm font-semibold text-stone-700">Motivo del ajuste</label>
+        <div className="grid gap-3 sm:grid-cols-[1fr_180px]">
           <select
-            className="w-full rounded-xl border border-stone-300 bg-stone-50 px-4 py-3 text-sm outline-none transition focus:border-emerald-500 focus:bg-white"
+            className={selectClassName}
+            value={productId}
+            onChange={(event) => setProductId(event.target.value)}
+          >
+            {filteredProducts.map((product) => (
+              <option key={product.id} value={product.id}>
+                {product.name} (Stock: {product.stockQty})
+              </option>
+            ))}
+          </select>
+
+          <Input
+            placeholder="Filtrar lista..."
+            value={productFilter}
+            onChange={(e) => setProductFilter(e.target.value)}
+            className="h-12 text-xs"
+          />
+        </div>
+
+        {/* Tarjeta de contexto del producto seleccionado */}
+        {selectedProduct ? (
+          <div className="rounded-[22px] border border-stone-200 bg-stone-50/80 p-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <div>
+                <span className="text-xs text-stone-400 font-semibold uppercase tracking-wider">Seleccionado:</span>{' '}
+                <span className="text-sm font-black text-stone-900">{selectedProduct.name}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-stone-500">Existencias actuales:</span>
+                <span className="rounded-xl bg-white border border-stone-200 px-3 py-1 font-mono text-sm font-black text-stone-900">
+                  {selectedProduct.stockQty} {selectedProduct.baseUnitOfMeasure?.name.toLowerCase() ?? 'unid.'}
+                </span>
+              </div>
+            </div>
+
+            {selectedProduct.uomConversions.length > 0 ? (
+              <div className="mt-2 text-[11px] text-stone-500">
+                {summarizeConversions(
+                  selectedProduct.uomConversions.map((c) => ({
+                    unitName: c.unitOfMeasure.name,
+                    ratioToBase: c.ratioToBase
+                  })),
+                  selectedProduct.baseUnitOfMeasure?.name
+                )}
+              </div>
+            ) : null}
+
+            {selectedProduct.variants.length > 0 ? (
+              <div className="mt-1 text-[11px] text-stone-400">
+                Variantes: {selectedProduct.variants.map((v) => buildVariantLabel(v) || v.sku || 'Variante').join(' • ')}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+
+      {/* 3. Motivo y Cantidad con Stepper Táctil */}
+      <div className="grid gap-6 md:grid-cols-2">
+        <div>
+          <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-stone-600">
+            Motivo del ajuste
+          </label>
+          <select
+            className={selectClassName}
             value={reasonId}
             onChange={(event) => setReasonId(event.target.value)}
           >
             {reasons.map((reason) => (
               <option key={reason.id} value={reason.id}>
-                {reason.label}
+                {reason.label} ({reason.code})
               </option>
             ))}
           </select>
         </div>
 
+        {/* Stepper numérico táctil */}
         <div>
-          <label className="mb-2 block text-sm font-semibold text-stone-700">Cantidad</label>
-          <Input type="number" min="1" placeholder="Introduce la cantidad" value={qty} onChange={(event) => setQty(event.target.value)} />
-        </div>
-      </div>
-
-      <div>
-        <label className="mb-2 block text-sm font-semibold text-stone-700">Notas</label>
-        <Input placeholder="Notas de respaldo (opcional)" value={notes} onChange={(event) => setNotes(event.target.value)} />
-      </div>
-
-      {selectedProduct ? (
-        <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-600">
-          Producto seleccionado: <span className="font-semibold text-stone-900">{selectedProduct.name}</span> | Stock actual: <span className="font-semibold text-stone-900">{selectedProduct.stockQty}</span> {selectedProduct.baseUnitOfMeasure?.name.toLowerCase() ?? 'unidades base'}
-          <div className="mt-1 text-xs text-stone-500">
-            {summarizeConversions(
-              selectedProduct.uomConversions.map((conversion) => ({
-                unitName: conversion.unitOfMeasure.name,
-                ratioToBase: conversion.ratioToBase
-              })),
-              selectedProduct.baseUnitOfMeasure?.name
-            )}
+          <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-stone-600">
+            Cantidad a ajustar
+          </label>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => adjustQty(-1)}
+              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-stone-200 bg-stone-100 text-lg font-black text-stone-700 transition hover:bg-stone-200 active:scale-95"
+              title="Restar 1"
+            >
+              −
+            </button>
+            <Input
+              type="number"
+              min="1"
+              value={qty}
+              onChange={(event) => setQty(event.target.value)}
+              className="h-12 text-center text-lg font-black text-stone-900"
+            />
+            <button
+              type="button"
+              onClick={() => adjustQty(1)}
+              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-stone-200 bg-stone-100 text-lg font-black text-stone-700 transition hover:bg-stone-200 active:scale-95"
+              title="Sumar 1"
+            >
+              +
+            </button>
           </div>
-          {selectedProduct.variants.length ? (
-            <div className="mt-1 text-xs text-stone-500">
-              Variantes: {selectedProduct.variants.map((variant) => buildVariantLabel(variant) || variant.sku || variant.barcode || 'Variante').join(' • ')}
-            </div>
-          ) : null}
-        </div>
-      ) : null}
 
-      <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
-        Usa conteos de inventario para variaciones, devoluciones a proveedores para retiros relacionados con proveedores y transferencias de sucursal para movimientos entre sucursales. Este formulario es ideal para bajas, uso interno y correcciones de saldo inicial.
+          {/* Accesos rápidos de cantidad táctiles */}
+          <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+            <span className="text-[10px] font-bold uppercase text-stone-400 mr-1">Rápido:</span>
+            {[1, 5, 10, 25, 50].map((num) => (
+              <button
+                key={num}
+                type="button"
+                onClick={() => setDirectQty(num)}
+                className={`min-h-[32px] rounded-xl px-2.5 text-xs font-bold transition active:scale-95 ${
+                  Number(qty) === num
+                    ? 'bg-stone-900 text-white'
+                    : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+                }`}
+              >
+                {num}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => adjustQty(10)}
+              className="min-h-[32px] rounded-xl bg-emerald-100 px-2.5 text-xs font-bold text-emerald-800 hover:bg-emerald-200"
+            >
+              +10
+            </button>
+          </div>
+        </div>
       </div>
 
+      {/* 4. Notas */}
+      <div>
+        <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-stone-600">
+          Notas de respaldo (Opcional)
+        </label>
+        <Input
+          placeholder="Ej: Pérdida por rotura de envase, vencimiento en góndola o corrección de carga inicial"
+          value={notes}
+          onChange={(event) => setNotes(event.target.value)}
+          className="h-12"
+        />
+      </div>
+
+      {/* Alertas y avisos */}
       {error ? (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+        <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-xs font-semibold text-red-700">
+          ⚠️ {error}
+        </div>
       ) : null}
 
       {success ? (
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{success}</div>
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-xs font-semibold text-emerald-700">
+          ✓ {success}
+        </div>
       ) : null}
 
-      <Button type="submit" disabled={loading || !activeProducts.length}>
-        {loading ? 'Guardando corrección de inventario...' : 'Guardar corrección de inventario'}
+      <div className="rounded-2xl border border-blue-100 bg-blue-50/70 p-4 text-xs text-blue-900">
+        💡 <strong>Recomendación:</strong> Usa conteos de inventario para diferencias periódicas y transferencias para envíos entre locales. Este formulario está reservado para mermas extraordinarias y saldos iniciales.
+      </div>
+
+      {/* Botón de Guardado Táctil */}
+      <Button
+        type="submit"
+        disabled={loading || !activeProducts.length}
+        className="h-13 w-full sm:w-auto px-8 text-base font-bold shadow-md shadow-emerald-900/10 active:scale-98"
+      >
+        {loading
+          ? 'Guardando corrección...'
+          : adjustmentType === 'ADD'
+            ? 'Confirmar ingreso de stock (+)'
+            : 'Confirmar retiro de stock (−)'}
       </Button>
     </form>
   );
