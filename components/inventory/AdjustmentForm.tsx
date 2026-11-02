@@ -101,8 +101,12 @@ export default function AdjustmentForm({
       return;
     }
 
-    if (adjustmentType === 'REMOVE' && selectedProduct && parsedQty > selectedProduct.stockQty) {
-      setError(`No se puede retirar ${parsedQty} unidades: el stock actual es de solo ${selectedProduct.stockQty}.`);
+    const isKg = selectedProduct?.baseUnitOfMeasure?.code === 'KG';
+    const dbQty = isKg ? Math.round(parsedQty * 1000) : parsedQty;
+
+    if (adjustmentType === 'REMOVE' && selectedProduct && dbQty > selectedProduct.stockQty) {
+      const availableText = isKg ? `${(selectedProduct.stockQty / 1000).toFixed(3)} Kg` : `${selectedProduct.stockQty} unidades`;
+      setError(`No se puede retirar ${parsedQty} ${isKg ? 'Kg' : 'unidades'}: el stock actual es de solo ${availableText}.`);
       return;
     }
 
@@ -117,7 +121,7 @@ export default function AdjustmentForm({
         body: JSON.stringify({
           productId,
           reasonId,
-          qtyChange: adjustmentType === 'REMOVE' ? parsedQty * -1 : parsedQty,
+          qtyChange: adjustmentType === 'REMOVE' ? dbQty * -1 : dbQty,
           notes: notes.trim() || null
         })
       });
@@ -244,7 +248,9 @@ export default function AdjustmentForm({
               <div className="flex items-center gap-2">
                 <span className="text-xs text-stone-500">Existencias actuales:</span>
                 <span className="rounded-xl bg-white border border-stone-200 px-3 py-1 font-mono text-sm font-black text-stone-900">
-                  {selectedProduct.stockQty} {selectedProduct.baseUnitOfMeasure?.name.toLowerCase() ?? 'unid.'}
+                  {selectedProduct.baseUnitOfMeasure?.code === 'KG'
+                    ? `${(selectedProduct.stockQty / 1000).toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 3 })} Kg`
+                    : `${selectedProduct.stockQty} ${selectedProduct.baseUnitOfMeasure?.name.toLowerCase() ?? 'unid.'}`}
                 </span>
               </div>
             </div>

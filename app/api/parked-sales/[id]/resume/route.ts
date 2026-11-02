@@ -43,11 +43,11 @@ export async function POST(
     });
 
     if (!parkedSale) {
-      return NextResponse.json({ error: 'Saved checkout entry not found.' }, { status: 404 });
+      return NextResponse.json({ error: 'No se encontró la venta en espera seleccionada.' }, { status: 404 });
     }
 
     if (parkedSale.cashierUserId !== userId && !canManageAllParkedSales(role)) {
-      return NextResponse.json({ error: 'You do not have access to this saved checkout entry.' }, { status: 403 });
+      return NextResponse.json({ error: 'No tiene permisos para retomar esta venta en espera.' }, { status: 403 });
     }
 
     const resumedParkedSale = await prisma.$transaction(async (tx) => {
@@ -94,6 +94,6 @@ export async function POST(
       parkedSale: serializeParkedSale(resumedParkedSale)
     });
   } catch (error) {
-    return apiErrorResponse(error, 'Unable to load the saved checkout entry.');
+    return apiErrorResponse(error, 'No fue posible cargar la venta en espera.');
   }
 }

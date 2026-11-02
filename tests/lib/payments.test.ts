@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   COMMON_BANKNOTE_DENOMINATIONS,
+  getPaymentMethodLabel,
   getPaymentSummary,
   getQuickCashAmounts,
   normalizePaymentInput,
@@ -9,6 +10,15 @@ import {
 } from '@/lib/payments';
 
 describe('payments', () => {
+  it('translates payment method labels to Spanish', () => {
+    expect(getPaymentMethodLabel('Cash')).toBe('Efectivo');
+    expect(getPaymentMethodLabel('Card')).toBe('Tarjeta');
+    expect(getPaymentMethodLabel('E-Wallet')).toBe('Billetera virtual');
+    expect(getPaymentMethodLabel('Bank Transfer')).toBe('Transferencia bancaria');
+    expect(getPaymentMethodLabel('Split')).toBe('Pago dividido');
+    expect(getPaymentMethodLabel('Customer Credit')).toBe('Cuenta corriente (Crédito)');
+  });
+
   it('requires references for card, e-wallet, and bank transfer payments', () => {
     expect(requiresReferenceNumber('Cash')).toBe(false);
     expect(requiresReferenceNumber('Card')).toBe(true);
@@ -37,7 +47,7 @@ describe('payments', () => {
 
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.error).toBe('Bank Transfer payments require a reference number.');
+      expect(result.error).toBe('Los pagos con transferencia bancaria requieren un número de referencia.');
     }
   });
 
@@ -49,7 +59,9 @@ describe('payments', () => {
 
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.error).toBe('Duplicate card reference numbers are not allowed in one sale.');
+      expect(result.error).toBe(
+        'No se permiten números de referencia duplicados para tarjeta en una misma venta.'
+      );
     }
   });
 
@@ -72,7 +84,9 @@ describe('payments', () => {
 
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.error).toBe('Non-cash payments must match the sale total exactly.');
+      expect(result.error).toBe(
+        'Los pagos que no sean en efectivo deben coincidir exactamente con el total de la venta.'
+      );
     }
   });
 

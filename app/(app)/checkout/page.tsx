@@ -23,6 +23,7 @@ type CheckoutProduct = {
   stockQty: number;
   categoryId: string | null;
   imageUrl: string | null;
+  baseUnitCode: string;
   category: {
     id: string;
     name: string;
@@ -56,6 +57,11 @@ export default async function CheckoutPage() {
           select: {
             id: true,
             name: true
+          }
+        },
+        baseUnitOfMeasure: {
+          select: {
+            code: true
           }
         },
         variants: {
@@ -162,6 +168,7 @@ export default async function CheckoutPage() {
               stockQty: product.stockQty,
               categoryId: product.categoryId,
               imageUrl: product.images[0]?.imageUrl ?? null,
+              baseUnitCode: product.baseUnitOfMeasure?.code ?? 'PIECE',
               category: product.category
                 ? {
                     id: product.category.id,
@@ -183,6 +190,7 @@ export default async function CheckoutPage() {
             stockQty: product.stockQty,
             categoryId: product.categoryId,
             imageUrl: product.images[0]?.imageUrl ?? null,
+            baseUnitCode: product.baseUnitOfMeasure?.code ?? 'PIECE',
             category: product.category
               ? {
                   id: product.category.id,
@@ -211,7 +219,7 @@ export default async function CheckoutPage() {
         currencySymbol={settings?.currencySymbol ?? '₱'}
         defaultPaymentMethods={sanitizeDefaultPaymentMethods(settings?.defaultPaymentMethods)}
         barcodeScannerNotes={settings?.barcodeScannerNotes ?? ''}
-        cashierName={session.user.name ?? 'Cashier'}
+        cashierName={session.user.name ?? 'Cajero'}
         hasActiveCashSession={Boolean(activeCashSession)}
         activeCashSessionId={activeCashSession?.id ?? null}
         shopId={shopId}
@@ -228,6 +236,9 @@ export default async function CheckoutPage() {
         receiptHeader={settings?.receiptHeader ?? null}
         receiptFooter={settings?.receiptFooter ?? null}
         receiptWidth={settings?.receiptWidth === '58mm' ? '58mm' : '80mm'}
+        receiptShowBrandMark={settings?.receiptShowBrandMark ?? false}
+        printerSafeMode={settings?.printerSafeMode ?? true}
+        cashDrawerKickEnabled={settings?.cashDrawerKickEnabled ?? false}
         initialParkedSales={parkedSales.map(serializeParkedSale)}
       />
     </div>

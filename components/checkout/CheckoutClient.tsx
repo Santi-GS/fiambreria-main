@@ -1,47 +1,78 @@
 'use client';
 
-import { type FormEvent, useEffect, useEffectEvent, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import {
+  type FormEvent,
+  useEffect,
+  useEffectEvent,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore
+} from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import Card from '@/components/ui/Card';
-import ThermalReceipt from '@/components/receipts/ThermalReceipt';
+import type { ReceiptSale } from '@/components/receipts/ThermalReceipt';
 import CustomerSearchModal from './CustomerSearchModal';
 import ParkedSalesModal from './ParkedSalesModal';
 import PaymentModal from './PaymentModal';
 import PosCartTable from './PosCartTable';
 import PosHeader from './PosHeader';
 import ProductSearchModal from './ProductSearchModal';
-import type { CartItem, Category, Customer, ParkedSale, PaymentLine, Product, ScanFeedback } from './types';
+import ReceiptPreviewModal from './ReceiptPreviewModal';
+import WeighProductModal from './WeighProductModal';
+import type {
+  CartItem,
+  Category,
+  Customer,
+  ParkedSale,
+  PaymentLine,
+  Product,
+  ScanFeedback
+} from './types';
 import { getCustomerDisplayName } from '@/lib/customers';
-import { dateTime, money } from '@/lib/format';
+import { money } from '@/lib/format';
 import { roundCurrency } from '@/lib/inventory';
 import {
   buildOfflineCheckoutDraftStorageKey,
   buildOfflineSalesQueueStorageKey,
   createOfflineClientRequestId,
   createOfflineReceiptNumber,
-  getStockSnapshotAgeMinutes,
   readLocalStorageValue,
   removeLocalStorageValue,
   writeLocalStorageValue,
   type OfflineCheckoutDraft,
-  type OfflineQueuedSale,
-  type OfflineQueuedSaleItem,
-  type OfflineReceiptSale
+  type OfflineQueuedSale
 } from '@/lib/offline-checkout';
 import {
   getPaymentSummary,
   getQuickCashAmounts,
-  normalizePaymentInput,
-  PAYMENT_METHODS,
   type PaymentMethod,
   validatePaymentsForSale
 } from '@/lib/payments';
-import { calculateTaxBreakdown, sanitizeDefaultPaymentMethods, type TaxModeValue } from '@/lib/shop-settings';
+import {
+  getAvailableWeightedStockGrams,
+  getBaseOptionId,
+  getReservedDbUnitsForProduct
+} from '@/lib/pos-stock';
+import {
+  calculateTaxBreakdown,
+  sanitizeDefaultPaymentMethods,
+  type TaxModeValue
+} from '@/lib/shop-settings';
+
+type WeighModalState =
+  | { mode: 'add'; product: Product; openKey: string }
+  | { mode: 'edit'; item: CartItem; openKey: string }
+  | null;
 
 function isTypingTarget(target: EventTarget | null) {
   if (!(target instanceof HTMLElement)) return false;
   const tagName = target.tagName;
-  return target.isContentEditable || tagName === 'INPUT' || tagName === 'TEXTAREA' || tagName === 'SELECT';
+  return (
+    target.isContentEditable ||
+    tagName === 'INPUT' ||
+    tagName === 'TEXTAREA' ||
+    tagName === 'SELECT'
+  );
 }
 
 function toNumber(value: string) {
@@ -53,7 +84,10 @@ function createPaymentLine(method: PaymentMethod): PaymentLine {
   return { id: crypto.randomUUID(), method, amount: '', referenceNumber: '' };
 }
 
-function buildInitialPaymentLines(defaultPaymentMethods: PaymentMethod[], canAcceptCash: boolean) {
+function buildInitialPaymentLines(
+  defaultPaymentMethods: PaymentMethod[],
+  canAcceptCash: boolean
+) {
   const preferredMethods = sanitizeDefaultPaymentMethods(defaultPaymentMethods).filter(
     (method) => canAcceptCash || method !== 'Cash'
   );
@@ -68,18 +102,6 @@ function toDateInputValue(value = new Date()) {
   return new Date(value.getTime() - offset * 60_000).toISOString().slice(0, 10);
 }
 
-function getReservedQtyForProduct(cart: CartItem[], productId: string, exceptOptionId?: string) {
-  return cart.reduce((sum, item) => {
-    if (item.productId !== productId) return sum;
-    if (exceptOptionId && item.id === exceptOptionId) return sum;
-    return sum + item.qty;
-  }, 0);
-}
-
-function getQueueItemOptionId(item: Pick<OfflineQueuedSaleItem, 'productId' | 'variantId'>) {
-  return item.variantId ?? item.productId;
-}
-
 function hasMeaningfulDraft(input: OfflineCheckoutDraft) {
   return (
     input.cart.length > 0 ||
@@ -90,7 +112,10 @@ function hasMeaningfulDraft(input: OfflineCheckoutDraft) {
     input.selectedCustomerId !== null ||
     Number(input.discountAmount || 0) > 0 ||
     input.isCreditSale ||
-    input.payments.some((payment) => payment.amount.trim().length > 0 || payment.referenceNumber.trim().length > 0)
+    input.payments.some(
+      (payment) =>
+        payment.amount.trim().length > 0 || payment.referenceNumber.trim().length > 0
+    )
   );
 }
 
@@ -135,26 +160,60 @@ function buildInitialCheckoutPersistenceState({
   const restoreNotes: string[] = [];
 
   for (const entry of draft.cart) {
-    const product = productMap.get(entry.optionId);
+    const baseOptionId = getBaseOptionId(entry.optionId);
+    const product = productMap.get(baseOptionId);
     if (!product) {
-      restoreNotes.push('Se omitió una línea del carrito guardado porque el producto ya no está disponible.');
+      restoreNotes.push(
+        'Se omitió una línea del carrito guardado porque el producto ya no está disponible.'
+      );
       continue;
     }
 
-    const reservedQty = getReservedQtyForProduct(restoredCart, product.productId);
-    const availableQty = Math.max(product.stockQty - reservedQty, 0);
-    const nextQty = Math.min(entry.qty, availableQty);
+    const isWeighted = product.baseUnitCode === 'KG';
+    const reservedDbUnits = getReservedDbUnitsForProduct(
+      restoredCart,
+      product.productId,
+      isWeighted
+    );
+    const availableDbUnits = Math.max(product.stockQty - reservedDbUnits, 0);
 
-    if (nextQty <= 0) {
-      restoreNotes.push(`${product.name} se omitió porque no hay existencias disponibles.`);
-      continue;
+    if (isWeighted) {
+      const requestedGrams = Math.round(entry.qty * 1000);
+      const nextGrams = Math.min(requestedGrams, availableDbUnits);
+
+      if (nextGrams <= 0) {
+        restoreNotes.push(
+          `${product.name} se omitió porque no hay existencias disponibles.`
+        );
+        continue;
+      }
+
+      const nextQtyKg = nextGrams / 1000;
+      if (nextGrams < requestedGrams) {
+        restoreNotes.push(
+          `${product.name} se redujo a ${nextQtyKg.toFixed(3).replace('.', ',')} Kg según las existencias actuales.`
+        );
+      }
+
+      restoredCart.push({ ...product, id: entry.optionId, qty: nextQtyKg });
+    } else {
+      const nextQty = Math.min(entry.qty, availableDbUnits);
+
+      if (nextQty <= 0) {
+        restoreNotes.push(
+          `${product.name} se omitió porque no hay existencias disponibles.`
+        );
+        continue;
+      }
+
+      if (nextQty < entry.qty) {
+        restoreNotes.push(
+          `${product.name} se redujo a ${nextQty} según las existencias actuales.`
+        );
+      }
+
+      restoredCart.push({ ...product, qty: nextQty });
     }
-
-    if (nextQty < entry.qty) {
-      restoreNotes.push(`${product.name} se redujo a ${nextQty} según las existencias actuales.`);
-    }
-
-    restoredCart.push({ ...product, qty: nextQty });
   }
 
   restored.selectedCategory = draft.selectedCategory;
@@ -214,6 +273,9 @@ type CheckoutClientProps = {
   receiptHeader: string | null;
   receiptFooter: string | null;
   receiptWidth: '58mm' | '80mm';
+  receiptShowBrandMark?: boolean;
+  printerSafeMode?: boolean;
+  cashDrawerKickEnabled?: boolean;
   initialParkedSales: ParkedSale[];
 };
 
@@ -247,34 +309,79 @@ export default function CheckoutClient({
   activeCashSessionId,
   shopId,
   userId,
-  offlineStockStrict,
-  offlineStockMaxAgeMinutes,
   stockSnapshotCapturedAt,
   shop,
   receiptHeader,
   receiptFooter,
   receiptWidth,
+  receiptShowBrandMark = false,
+  printerSafeMode = true,
+  cashDrawerKickEnabled = false,
   initialParkedSales
 }: CheckoutClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const resumeParam = searchParams.get('resume');
 
-  const draftStorageKey = useMemo(() => buildOfflineCheckoutDraftStorageKey(shopId, userId), [shopId, userId]);
-  const queueStorageKey = useMemo(() => buildOfflineSalesQueueStorageKey(shopId, userId), [shopId, userId]);
+  const draftStorageKey = useMemo(
+    () => buildOfflineCheckoutDraftStorageKey(shopId, userId),
+    [shopId, userId]
+  );
+  const queueStorageKey = useMemo(
+    () => buildOfflineSalesQueueStorageKey(shopId, userId),
+    [shopId, userId]
+  );
 
   const [initialHydrated, setInitialHydrated] = useState(false);
-  const isOnline = useSyncExternalStore(subscribeOnline, getOnlineSnapshot, getOnlineServerSnapshot);
-  const [syncingQueue, setSyncingQueue] = useState(false);
+  const hydratedStorageIdentityRef = useRef<string | null>(null);
+  const isOnline = useSyncExternalStore(
+    subscribeOnline,
+    getOnlineSnapshot,
+    getOnlineServerSnapshot
+  );
   const [queuedSales, setQueuedSales] = useState<OfflineQueuedSale[]>([]);
-  const [activeReceiptId, setActiveReceiptId] = useState<string | null>(null);
-  const [lastSyncedSale, setLastSyncedSale] = useState<{ id: string; localReceiptNumber: string; receiptNumber: string } | null>(null);
+  const [activeOfflineQueueId, setActiveOfflineQueueId] = useState<string | null>(null);
+
+  // Optimistic stock deductions applied immediately upon sale completion until server snapshot refreshes
+  const [optimisticDeductions, setOptimisticDeductions] = useState<{
+    snapshotAt: string;
+    byProductId: Record<string, number>;
+  }>({ snapshotAt: stockSnapshotCapturedAt, byProductId: {} });
+
+  const activeDeductions = useMemo(
+    () =>
+      optimisticDeductions.snapshotAt === stockSnapshotCapturedAt
+        ? optimisticDeductions.byProductId
+        : {},
+    [optimisticDeductions, stockSnapshotCapturedAt]
+  );
+
+  const liveProducts = useMemo(
+    () =>
+      products.map((product) => {
+        const deducted = activeDeductions[product.productId] ?? 0;
+        return deducted > 0
+          ? { ...product, stockQty: Math.max(0, product.stockQty - deducted) }
+          : product;
+      }),
+    [products, activeDeductions]
+  );
+
+  const productMap = useMemo(
+    () => new Map(liveProducts.map((product) => [product.id, product])),
+    [liveProducts]
+  );
 
   // Modals state
   const [isProductSearchOpen, setIsProductSearchOpen] = useState(false);
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [isParkedSalesOpen, setIsParkedSalesOpen] = useState(false);
   const [isCustomerSearchOpen, setIsCustomerSearchOpen] = useState(false);
+  const [weighModalState, setWeighModalState] = useState<WeighModalState>(null);
+  const [receiptPreview, setReceiptPreview] = useState<{
+    sale: ReceiptSale;
+    isOffline: boolean;
+  } | null>(null);
 
   // Scanning state
   const [scanQuery, setScanQuery] = useState('');
@@ -304,8 +411,6 @@ export default function CheckoutClient({
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const productMap = useMemo(() => new Map(products.map((product) => [product.id, product])), [products]);
-
   // Selected customer
   const selectedCustomer = useMemo(
     () => customers.find((customer) => customer.id === selectedCustomerId) ?? null,
@@ -322,9 +427,15 @@ export default function CheckoutClient({
     });
   };
 
-  // Hydration effect
+  // Hydration effect (runs once per shop/user storage key, unaffected by background router.refresh())
   useEffect(() => {
+    const storageIdentity = `${draftStorageKey}|${queueStorageKey}`;
+    if (hydratedStorageIdentityRef.current === storageIdentity) {
+      return;
+    }
+
     const timer = setTimeout(() => {
+      hydratedStorageIdentityRef.current = storageIdentity;
       const restored = buildInitialCheckoutPersistenceState({
         draftStorageKey,
         queueStorageKey,
@@ -334,6 +445,9 @@ export default function CheckoutClient({
       });
 
       setQueuedSales(restored.queuedSales);
+      if (restored.queuedSales.length > 0) {
+        setActiveOfflineQueueId(restored.queuedSales[0].id);
+      }
       setCart(restored.cart);
       setDiscountAmount(restored.discountAmount);
       setSelectedCustomerId(restored.selectedCustomerId);
@@ -349,7 +463,13 @@ export default function CheckoutClient({
     }, 0);
 
     return () => clearTimeout(timer);
-  }, [draftStorageKey, queueStorageKey, products, defaultPaymentMethods, hasActiveCashSession]);
+  }, [
+    draftStorageKey,
+    queueStorageKey,
+    products,
+    defaultPaymentMethods,
+    hasActiveCashSession
+  ]);
 
   // Sync draft to local storage
   useEffect(() => {
@@ -403,7 +523,10 @@ export default function CheckoutClient({
   }, [initialHydrated, queueStorageKey, queuedSales]);
 
   // Cart calculations
-  const rawSubtotal = cart.reduce((sum, item) => sum + Number(item.price) * item.qty, 0);
+  const rawSubtotal = cart.reduce(
+    (sum, item) => sum + Number(item.price) * item.qty,
+    0
+  );
   const subtotal = roundCurrency(rawSubtotal);
   const manualDiscount = Math.min(Math.max(toNumber(discountAmount), 0), subtotal);
   const discount = roundCurrency(manualDiscount);
@@ -432,34 +555,100 @@ export default function CheckoutClient({
     [total, isCreditSale, payments]
   );
 
-  const paymentValidation = useMemo(
-    () =>
-      validatePaymentsForSale(
-        total,
-        isCreditSale
-          ? []
-          : payments.map((payment) => ({
-              method: payment.method,
-              amount: toNumber(payment.amount),
-              referenceNumber: payment.referenceNumber
-            }))
-      ),
-    [total, isCreditSale, payments]
-  );
+  const paymentValidation = useMemo(() => {
+    if (isCreditSale) {
+      if (!selectedCustomerId) {
+        return {
+          ok: false as const,
+          error: 'Seleccione un cliente para registrar una venta en cuenta corriente.'
+        };
+      }
+      if (!creditDueDate.trim()) {
+        return {
+          ok: false as const,
+          error: 'Indique una fecha de vencimiento para la venta a crédito.'
+        };
+      }
+      return { ok: true as const, error: undefined };
+    }
+
+    return validatePaymentsForSale(
+      total,
+      payments.map((payment) => ({
+        method: payment.method,
+        amount: toNumber(payment.amount),
+        referenceNumber: payment.referenceNumber
+      }))
+    );
+  }, [total, isCreditSale, selectedCustomerId, creditDueDate, payments]);
 
   const paymentError = paymentValidation.error;
-  const canCompleteSale = cart.length > 0 && (isCreditSale ? Boolean(selectedCustomerId) : !paymentError);
+  const canCompleteSale = cart.length > 0 && paymentValidation.ok;
+
+  // Derived stock info for WeighProductModal (add & edit modes)
+  const weighModalContext = useMemo(() => {
+    if (!weighModalState) return null;
+
+    const baseId =
+      weighModalState.mode === 'edit'
+        ? getBaseOptionId(weighModalState.item.id)
+        : weighModalState.product.id;
+
+    const latestProduct =
+      productMap.get(baseId) ??
+      (weighModalState.mode === 'edit'
+        ? weighModalState.item
+        : weighModalState.product);
+
+    const { availableGrams, reservedGrams } = getAvailableWeightedStockGrams(
+      latestProduct.stockQty,
+      cart,
+      latestProduct.productId,
+      weighModalState.mode === 'edit' ? weighModalState.item.id : undefined
+    );
+
+    return {
+      product: latestProduct,
+      mode: weighModalState.mode,
+      openKey: weighModalState.openKey,
+      editItemId: weighModalState.mode === 'edit' ? weighModalState.item.id : null,
+      initialWeightKg:
+        weighModalState.mode === 'edit' ? weighModalState.item.qty : null,
+      availableGrams,
+      reservedGrams
+    };
+  }, [weighModalState, productMap, cart]);
 
   // Cart actions
   const addToCart = (product: Product, quantityMultiplier = 1) => {
-    const qtyToAdd = quantityMultiplier > 0 ? quantityMultiplier : 1;
+    const latestProduct = productMap.get(product.id) ?? product;
+
+    // Intercept weighted products: open weigh modal instead of adding directly
+    if (latestProduct.baseUnitCode === 'KG') {
+      setWeighModalState({
+        mode: 'add',
+        product: latestProduct,
+        openKey: `add-${latestProduct.id}-${Date.now()}`
+      });
+      return;
+    }
+
+    const qtyToAdd = Math.max(1, Math.round(quantityMultiplier > 0 ? quantityMultiplier : 1));
     setCart((current) => {
-      const existingIndex = current.findIndex((item) => item.id === product.id);
-      const reservedQty = getReservedQtyForProduct(current, product.productId, product.id);
-      const availableStock = Math.max(product.stockQty - reservedQty, 0);
+      const existingIndex = current.findIndex((item) => item.id === latestProduct.id);
+      const reservedQty = getReservedDbUnitsForProduct(
+        current,
+        latestProduct.productId,
+        false,
+        latestProduct.id
+      );
+      const availableStock = Math.max(latestProduct.stockQty - reservedQty, 0);
 
       if (availableStock <= 0) {
-        setScanFeedback({ tone: 'error', message: `${product.name} no tiene existencias disponibles.` });
+        setScanFeedback({
+          tone: 'error',
+          message: `${latestProduct.name} no tiene existencias disponibles.`
+        });
         return current;
       }
 
@@ -469,37 +658,58 @@ export default function CheckoutClient({
         if (nextQty > availableStock) {
           setScanFeedback({
             tone: 'error',
-            message: `Solo hay ${availableStock} unidad(es) de ${product.name}.`
+            message: `Solo hay ${availableStock} unidad(es) disponibles de ${latestProduct.name}.`
           });
           return current;
         }
 
         const updated = [...current];
-        updated[existingIndex] = { ...existing, qty: nextQty };
-        setScanFeedback({ tone: 'success', message: `${product.name} actualizado (Cant: ${nextQty}).` });
+        updated[existingIndex] = {
+          ...existing,
+          stockQty: latestProduct.stockQty,
+          qty: nextQty
+        };
+        setScanFeedback({
+          tone: 'success',
+          message: `${latestProduct.name} actualizado (Cant.: ${nextQty}).`
+        });
         return updated;
       }
 
       if (qtyToAdd > availableStock) {
         setScanFeedback({
           tone: 'error',
-          message: `Solo hay ${availableStock} unidad(es) de ${product.name}.`
+          message: `Solo hay ${availableStock} unidad(es) disponibles de ${latestProduct.name}.`
         });
         return current;
       }
 
-      setScanFeedback({ tone: 'success', message: `${product.name} agregado a la venta.` });
-      return [{ ...product, qty: qtyToAdd }, ...current];
+      setScanFeedback({
+        tone: 'success',
+        message: `${latestProduct.name} agregado a la venta.`
+      });
+      return [{ ...latestProduct, qty: qtyToAdd }, ...current];
     });
   };
 
-  const updateQty = (productId: string, action: 'increase' | 'decrease' | 'set', explicitValue?: number) => {
+  const updateQty = (
+    cartItemId: string,
+    action: 'increase' | 'decrease' | 'set',
+    explicitValue?: number
+  ) => {
     setCart((current) =>
       current
         .map((item) => {
-          if (item.id !== productId) return item;
-          const reservedQty = getReservedQtyForProduct(current, item.productId, item.id);
-          const availableStock = Math.max(item.stockQty - reservedQty, 0);
+          if (item.id !== cartItemId) return item;
+          const latestProduct = productMap.get(getBaseOptionId(item.id)) ?? item;
+          const isWeighted = latestProduct.baseUnitCode === 'KG';
+          const reservedUnits = getReservedDbUnitsForProduct(
+            current,
+            item.productId,
+            isWeighted,
+            item.id
+          );
+          const availableStock = Math.max(latestProduct.stockQty - reservedUnits, 0);
 
           let nextQty = item.qty;
           if (action === 'increase') nextQty += 1;
@@ -507,22 +717,143 @@ export default function CheckoutClient({
           else if (action === 'set' && explicitValue !== undefined) nextQty = explicitValue;
 
           if (nextQty <= 0) return null;
-          if (nextQty > availableStock) {
+
+          const requiredUnits = isWeighted ? Math.round(nextQty * 1000) : nextQty;
+          if (requiredUnits > availableStock) {
             setScanFeedback({
               tone: 'error',
-              message: `No se puede exceder el stock disponible (${availableStock}).`
+              message: isWeighted
+                ? `No se puede superar el stock disponible (${(availableStock / 1000).toFixed(3).replace('.', ',')} Kg).`
+                : `No se puede superar el stock disponible (${availableStock} unidad(es)).`
             });
             return item;
           }
 
-          return { ...item, qty: nextQty };
+          return { ...item, stockQty: latestProduct.stockQty, qty: nextQty };
         })
         .filter((item): item is CartItem => item !== null)
     );
   };
 
-  const removeFromCart = (productId: string) => {
-    setCart((current) => current.filter((item) => item.id !== productId));
+  const removeFromCart = (cartItemId: string) => {
+    setCart((current) => current.filter((item) => item.id !== cartItemId));
+  };
+
+  /**
+   * Adds a weighted product to the cart with a fractional Kg quantity,
+   * verifying stock availability in grams.
+   */
+  const addWeightedToCart = (product: Product, weightKg: number) => {
+    const requestedGrams = Math.round(weightKg * 1000);
+    if (requestedGrams <= 0) return;
+
+    const latestProduct = productMap.get(product.id) ?? product;
+    const normalizedKg = requestedGrams / 1000;
+
+    setCart((current) => {
+      const reservedGrams = getReservedDbUnitsForProduct(
+        current,
+        latestProduct.productId,
+        true
+      );
+      const availableGrams = Math.max(0, latestProduct.stockQty - reservedGrams);
+
+      if (requestedGrams > availableGrams) {
+        setScanFeedback({
+          tone: 'error',
+          message: `Stock insuficiente para ${latestProduct.name}: quedan ${(availableGrams / 1000).toFixed(3).replace('.', ',')} Kg disponibles.`
+        });
+        return current;
+      }
+
+      const unitPrice = Number(latestProduct.price);
+      const lineTotal = normalizedKg * unitPrice;
+
+      setScanFeedback({
+        tone: 'success',
+        message: `${latestProduct.name} — ${normalizedKg.toFixed(3).replace('.', ',')} Kg (${money(lineTotal, currencySymbol)}) agregado.`
+      });
+
+      return [
+        {
+          ...latestProduct,
+          id: `${latestProduct.id}-w-${Date.now()}`,
+          qty: normalizedKg
+        },
+        ...current
+      ];
+    });
+  };
+
+  /**
+   * Updates an existing weighted cart item's quantity in-place.
+   */
+  const updateWeightedCartItem = (cartItemId: string, weightKg: number) => {
+    const requestedGrams = Math.round(weightKg * 1000);
+    if (requestedGrams <= 0) return;
+    const normalizedKg = requestedGrams / 1000;
+
+    setCart((current) =>
+      current.map((item) => {
+        if (item.id !== cartItemId) return item;
+        const latestProduct = productMap.get(getBaseOptionId(item.id)) ?? item;
+        const reservedGrams = getReservedDbUnitsForProduct(
+          current,
+          item.productId,
+          true,
+          item.id
+        );
+        const availableGrams = Math.max(0, latestProduct.stockQty - reservedGrams);
+
+        if (requestedGrams > availableGrams) {
+          setScanFeedback({
+            tone: 'error',
+            message: `Stock insuficiente para ${item.name}: máximo disponible ${(availableGrams / 1000).toFixed(3).replace('.', ',')} Kg.`
+          });
+          return item;
+        }
+
+        const lineTotal = normalizedKg * Number(item.price);
+        setScanFeedback({
+          tone: 'success',
+          message: `${item.name} — peso actualizado a ${normalizedKg.toFixed(3).replace('.', ',')} Kg (${money(lineTotal, currencySymbol)}).`
+        });
+
+        return {
+          ...item,
+          stockQty: latestProduct.stockQty,
+          qty: normalizedKg
+        };
+      })
+    );
+  };
+
+  const openEditWeightedItem = (item: CartItem) => {
+    setWeighModalState({
+      mode: 'edit',
+      item,
+      openKey: `edit-${item.id}-${Date.now()}`
+    });
+  };
+
+  const recordOptimisticStockDeduction = (soldItems: CartItem[]) => {
+    setOptimisticDeductions((prev) => {
+      const base =
+        prev.snapshotAt === stockSnapshotCapturedAt ? { ...prev.byProductId } : {};
+
+      for (const item of soldItems) {
+        const isWeighted = item.baseUnitCode === 'KG';
+        const deductedUnits = isWeighted
+          ? Math.round(item.qty * 1000)
+          : Math.max(1, Math.round(item.qty));
+        base[item.productId] = (base[item.productId] ?? 0) + deductedUnits;
+      }
+
+      return {
+        snapshotAt: stockSnapshotCapturedAt,
+        byProductId: base
+      };
+    });
   };
 
   const requestClearCart = () => {
@@ -557,7 +888,7 @@ export default function CheckoutClient({
     const queryTerm = scanQuery.trim().toLowerCase();
     if (!queryTerm) return;
 
-    const matchedProduct = products.find(
+    const matchedProduct = liveProducts.find(
       (p) =>
         p.barcode?.toLowerCase() === queryTerm ||
         p.sku?.toLowerCase() === queryTerm ||
@@ -570,11 +901,13 @@ export default function CheckoutClient({
       addToCart(matchedProduct, qtyMultiplier);
       setScanQuery('');
       setScanQty('1');
-      focusScanInput(true);
+      if (matchedProduct.baseUnitCode !== 'KG') {
+        focusScanInput(true);
+      }
     } else {
       setScanFeedback({
         tone: 'error',
-        message: `No se encontró ningún producto con el código o SKU "${scanQuery}".`
+        message: `No se encontró ningún producto con el código "${scanQuery}".`
       });
     }
   };
@@ -587,7 +920,10 @@ export default function CheckoutClient({
   };
 
   const addPaymentLine = () => {
-    setPayments((current) => [...current, createPaymentLine(hasActiveCashSession ? 'Cash' : 'Card')]);
+    setPayments((current) => [
+      ...current,
+      createPaymentLine(hasActiveCashSession ? 'Cash' : 'Card')
+    ]);
   };
 
   const removePaymentLine = (id: string) => {
@@ -619,14 +955,16 @@ export default function CheckoutClient({
         body: JSON.stringify({
           type,
           customerId: selectedCustomerId,
-          customerName: customerName || (selectedCustomer ? getCustomerDisplayName(selectedCustomer) : null),
+          customerName:
+            customerName ||
+            (selectedCustomer ? getCustomerDisplayName(selectedCustomer) : null),
           customerPhone: customerPhone || selectedCustomer?.phone || null,
+          discountAmount: discount,
           notes: notes || null,
           items: cart.map((item) => ({
             productId: item.productId,
-            productVariantId: item.variantId,
-            qty: item.qty,
-            unitPrice: item.price
+            variantId: item.variantId,
+            qty: item.qty
           }))
         })
       });
@@ -634,7 +972,7 @@ export default function CheckoutClient({
       const data = await response.json();
       setHolding(null);
       if (!response.ok) {
-        setError(data.error ?? 'No fue posible guardar el carrito.');
+        setError(data.error ?? 'No fue posible guardar el carrito en espera.');
         return;
       }
 
@@ -647,17 +985,22 @@ export default function CheckoutClient({
       resetCheckoutState();
     } catch {
       setHolding(null);
-      setError('Error de conexión al guardar el registro.');
+      setError('Error de conexión al guardar la venta en espera.');
     }
   };
 
-  const resumeParkedSale = async (parkedSale: ParkedSale, options?: { clearSearchParamAfter?: boolean }) => {
+  const resumeParkedSale = async (
+    parkedSale: ParkedSale,
+    options?: { clearSearchParamAfter?: boolean }
+  ) => {
     setError('');
     setParkedFeedback('');
     setResumeLoadingId(parkedSale.id);
 
     try {
-      const response = await fetch(`/api/parked-sales/${parkedSale.id}/resume`, { method: 'POST' });
+      const response = await fetch(`/api/parked-sales/${parkedSale.id}/resume`, {
+        method: 'POST'
+      });
       const data = await response.json();
       setResumeLoadingId(null);
 
@@ -666,23 +1009,45 @@ export default function CheckoutClient({
         return false;
       }
 
-      // Reconstruct cart from restored lines
+      // Reconstruct cart from restored lines (preserving fractional Kg weights)
       const restoredCart: CartItem[] = [];
-      for (const item of parkedSale.items) {
+      parkedSale.items.forEach((item, index) => {
         const optionId = item.productVariantId ?? item.productId;
         const option = productMap.get(optionId);
-        if (option) {
+        if (!option) return;
+
+        if (option.baseUnitCode === 'KG') {
+          const weightMatch = item.variantLabel?.match(/(\d+(?:\.\d+)?)\s*Kg$/i);
+          const inferredWeight = weightMatch
+            ? parseFloat(weightMatch[1])
+            : Number(option.price) > 0
+              ? Math.round((Number(item.lineTotal) / Number(option.price)) * 1000) /
+                1000
+              : item.qty;
+
+          if (inferredWeight > 0) {
+            restoredCart.push({
+              ...option,
+              id: `${option.id}-w-${Date.now()}-${index}`,
+              qty: inferredWeight
+            });
+          }
+        } else {
           restoredCart.push({ ...option, qty: item.qty });
         }
-      }
+      });
 
       setCart(restoredCart);
       setSelectedCustomerId(parkedSale.customerId);
       setCustomerName(parkedSale.customerName ?? '');
       setCustomerPhone(parkedSale.customerPhone ?? '');
       setNotes(parkedSale.notes ?? '');
-      setParkedSales((current) => current.filter((entry) => entry.id !== parkedSale.id));
-      setParkedFeedback(`Se cargó ${parkedSale.type === 'QUOTE' ? 'la cotización' : 'el carrito en espera'}.`);
+      setParkedSales((current) =>
+        current.filter((entry) => entry.id !== parkedSale.id)
+      );
+      setParkedFeedback(
+        `Se cargó ${parkedSale.type === 'QUOTE' ? 'la cotización' : 'el carrito en espera'}.`
+      );
       focusScanInput();
       if (options?.clearSearchParamAfter) router.replace('/checkout');
       return true;
@@ -694,10 +1059,18 @@ export default function CheckoutClient({
   };
 
   const cancelParkedSale = async (parkedSale: ParkedSale) => {
-    if (!window.confirm('¿Cancelar este registro guardado? Se eliminará de la lista activa.')) return;
+    if (
+      !window.confirm(
+        '¿Cancelar este registro guardado? Se eliminará de la lista activa.'
+      )
+    ) {
+      return;
+    }
     setCancelLoadingId(parkedSale.id);
     try {
-      const response = await fetch(`/api/parked-sales/${parkedSale.id}`, { method: 'DELETE' });
+      const response = await fetch(`/api/parked-sales/${parkedSale.id}`, {
+        method: 'DELETE'
+      });
       setCancelLoadingId(null);
       if (response.ok) {
         setParkedSales((current) => current.filter((e) => e.id !== parkedSale.id));
@@ -725,24 +1098,36 @@ export default function CheckoutClient({
   const completeSale = async () => {
     setError('');
     setParkedFeedback('');
-    if (!cart.length) return setError('Por favor agregue productos al carrito.');
-    if (paymentError && !isCreditSale) return setError(paymentError);
+    if (!cart.length) {
+      return setError('Por favor agregue productos al carrito.');
+    }
+    if (paymentError) {
+      return setError(paymentError);
+    }
 
     const occurredAt = new Date().toISOString();
-    const clientRequestId = createOfflineClientRequestId(shopId, userId, new Date(occurredAt));
+    const clientRequestId = createOfflineClientRequestId(
+      shopId,
+      userId,
+      new Date(occurredAt)
+    );
+    const resolvedCustomerName =
+      customerName ||
+      (selectedCustomer ? getCustomerDisplayName(selectedCustomer) : null);
+    const resolvedCustomerPhone = customerPhone || selectedCustomer?.phone || null;
 
     const salePayload = {
       clientRequestId,
       shopId,
       customerId: selectedCustomerId,
-      customerName: customerName || (selectedCustomer ? getCustomerDisplayName(selectedCustomer) : null),
-      customerPhone: customerPhone || selectedCustomer?.phone || null,
+      customerName: resolvedCustomerName,
+      customerPhone: resolvedCustomerPhone,
       subtotal: subtotal.toFixed(2),
       taxAmount: taxAmount.toFixed(2),
       discountAmount: discount.toFixed(2),
       totalAmount: total.toFixed(2),
       changeDue: paymentSummary.changeDue.toFixed(2),
-      paymentMethod: isCreditSale ? 'Credit' : payments[0]?.method ?? 'Cash',
+      paymentMethod: isCreditSale ? 'Credit' : (payments[0]?.method ?? 'Cash'),
       isCreditSale,
       creditDueDate: isCreditSale ? creditDueDate : null,
       notes: notes || null,
@@ -761,7 +1146,7 @@ export default function CheckoutClient({
     };
 
     if (!isOnline) {
-      // Enqueue offline
+      // Enqueue offline & show compact receipt preview modal immediately
       const localReceiptNumber = createOfflineReceiptNumber(new Date(occurredAt));
       const offlineSale: OfflineQueuedSale = {
         id: crypto.randomUUID(),
@@ -777,8 +1162,8 @@ export default function CheckoutClient({
           occurredAt,
           cashSessionId: activeCashSessionId,
           customerId: selectedCustomerId,
-          customerName: customerName || (selectedCustomer ? getCustomerDisplayName(selectedCustomer) : null),
-          customerPhone: customerPhone || selectedCustomer?.phone || null,
+          customerName: resolvedCustomerName,
+          customerPhone: resolvedCustomerPhone,
           isCreditSale,
           creditDueDate: isCreditSale ? creditDueDate : null,
           discountAmount: discount,
@@ -791,7 +1176,7 @@ export default function CheckoutClient({
                 referenceNumber: p.referenceNumber || null
               })),
           items: cart.map((item) => ({
-            optionId: item.id,
+            optionId: getBaseOptionId(item.id),
             productId: item.productId,
             variantId: item.variantId,
             productName: item.name,
@@ -804,10 +1189,14 @@ export default function CheckoutClient({
           id: `offline-${clientRequestId}`,
           saleNumber: localReceiptNumber,
           receiptNumber: localReceiptNumber,
-          paymentMethod: isCreditSale ? 'Credit' : payments[0]?.method ?? 'Cash',
+          paymentMethod: isCreditSale
+            ? 'Credit'
+            : payments.length > 1
+              ? 'Split'
+              : (payments[0]?.method ?? 'Cash'),
           cashierName,
-          customerName: customerName || (selectedCustomer ? getCustomerDisplayName(selectedCustomer) : null),
-          customerPhone: customerPhone || selectedCustomer?.phone || null,
+          customerName: resolvedCustomerName,
+          customerPhone: resolvedCustomerPhone,
           customerBusinessName: selectedCustomer?.businessName ?? null,
           customerEmail: selectedCustomer?.email ?? null,
           isCreditSale,
@@ -830,20 +1219,31 @@ export default function CheckoutClient({
                 referenceNumber: p.referenceNumber || null,
                 createdAt: occurredAt
               })),
-          items: cart.map((item) => ({
-            id: `item-${item.id}`,
-            productName: item.name,
-            qty: item.qty,
-            unitPrice: item.price,
-            lineTotal: (Number(item.price) * item.qty).toFixed(2)
-          }))
+          items: cart.map((item) => {
+            const isKg = item.baseUnitCode === 'KG' || !Number.isInteger(item.qty);
+            const lineTotalNum = roundCurrency(Number(item.price) * item.qty);
+            return {
+              id: `item-${item.id}`,
+              productName: isKg
+                ? `${item.name} (${item.qty.toFixed(3)} Kg)`
+                : item.name,
+              qty: isKg ? 1 : item.qty,
+              unitPrice: isKg ? lineTotalNum.toFixed(2) : item.price,
+              lineTotal: lineTotalNum.toFixed(2)
+            };
+          })
         }
       };
 
+      const soldSnapshot = [...cart];
+      recordOptimisticStockDeduction(soldSnapshot);
       setQueuedSales((cur) => [offlineSale, ...cur]);
-      setActiveReceiptId(offlineSale.id);
+      setActiveOfflineQueueId(offlineSale.id);
       resetCheckoutState();
-      setParkedFeedback(`Venta ${localReceiptNumber} guardada en cola sin conexión.`);
+      setReceiptPreview({ sale: offlineSale.receipt, isOffline: true });
+      setParkedFeedback(
+        `Venta ${localReceiptNumber} guardada en cola sin conexión.`
+      );
       return;
     }
 
@@ -862,69 +1262,185 @@ export default function CheckoutClient({
         return;
       }
 
+      const serverPayments: ReceiptSale['payments'] = Array.isArray(
+        data.sale?.payments
+      )
+        ? data.sale.payments.map(
+            (p: {
+              id: string;
+              method: string;
+              amount: string | number;
+              referenceNumber?: string | null;
+              createdAt?: string;
+            }) => ({
+              id: p.id,
+              method: p.method,
+              amount: String(p.amount),
+              referenceNumber: p.referenceNumber ?? null,
+              createdAt: p.createdAt ?? data.sale.createdAt
+            })
+          )
+        : isCreditSale
+          ? []
+          : payments.map((p) => ({
+              id: p.id,
+              method: p.method,
+              amount: toNumber(p.amount).toFixed(2),
+              referenceNumber: p.referenceNumber || null,
+              createdAt: data.sale.createdAt
+            }));
+
+      const completedReceipt: ReceiptSale = {
+        id: data.sale.id,
+        saleNumber: data.sale.saleNumber,
+        receiptNumber: data.sale.receiptNumber,
+        paymentMethod: data.sale.paymentMethod,
+        cashierName: data.sale.cashierName ?? cashierName,
+        customerName: data.sale.customerName ?? resolvedCustomerName,
+        customerPhone: data.sale.customerPhone ?? resolvedCustomerPhone,
+        customerBusinessName: selectedCustomer?.businessName ?? null,
+        customerEmail: selectedCustomer?.email ?? null,
+        isCreditSale: Boolean(data.sale.isCreditSale),
+        creditDueDate: isCreditSale ? creditDueDate : null,
+        subtotal: String(data.sale.subtotal),
+        taxAmount: String(data.sale.taxAmount),
+        discountAmount: String(data.sale.discountAmount),
+        totalAmount: String(data.sale.totalAmount),
+        totalPaid: paymentSummary.totalPaid.toFixed(2),
+        cashReceived: paymentSummary.cashReceived.toFixed(2),
+        changeDue: String(data.sale.changeDue),
+        notes: data.sale.notes ?? null,
+        createdAt: data.sale.createdAt,
+        payments: serverPayments,
+        items: (data.sale.items ?? []).map(
+          (item: {
+            id: string;
+            productName: string;
+            qty: number;
+            unitPrice: string | number;
+            lineTotal: string | number;
+          }) => ({
+            id: item.id,
+            productName: item.productName,
+            qty: item.qty,
+            unitPrice: String(item.unitPrice),
+            lineTotal: String(item.lineTotal)
+          })
+        )
+      };
+
+      const soldSnapshot = [...cart];
+      recordOptimisticStockDeduction(soldSnapshot);
       resetCheckoutState();
-      router.push(`/print/receipt/${data.sale.id}?autoprint=1`);
+      setReceiptPreview({ sale: completedReceipt, isOffline: false });
       router.refresh();
     } catch {
       setLoading(false);
-      setError('Error al registrar la venta en el servidor.');
+      setError('Error de conexión al registrar la venta en el servidor.');
     }
   };
 
   // Keyboard Shortcuts
+  const hasAnyModalOpen =
+    isProductSearchOpen ||
+    isPaymentOpen ||
+    isParkedSalesOpen ||
+    isCustomerSearchOpen ||
+    weighModalState !== null ||
+    receiptPreview !== null;
+
   const handleOpenProductSearchEvent = useEffectEvent(() => {
+    if (receiptPreview || weighModalState) return;
     setIsProductSearchOpen(true);
   });
 
   const handleOpenPaymentEvent = useEffectEvent(() => {
+    if (receiptPreview || weighModalState) return;
+    if (isPaymentOpen && canCompleteSale && !loading) {
+      void completeSale();
+      return;
+    }
     if (cart.length > 0) setIsPaymentOpen(true);
   });
 
   const handleOpenCustomerEvent = useEffectEvent(() => {
+    if (receiptPreview || weighModalState) return;
     setIsCustomerSearchOpen(true);
   });
 
   const handleOpenParkedSalesEvent = useEffectEvent(() => {
+    if (receiptPreview || weighModalState) return;
     setIsParkedSalesOpen(true);
   });
 
   const handleNewSaleEvent = useEffectEvent(() => {
+    if (receiptPreview) {
+      setReceiptPreview(null);
+      focusScanInput();
+      return;
+    }
     requestClearCart();
   });
 
-  const handleCloseAllModalsEvent = useEffectEvent(() => {
+  const handleEscapeEvent = useEffectEvent(() => {
+    // Close topmost modal first
+    if (weighModalState) {
+      setWeighModalState(null);
+      focusScanInput();
+      return;
+    }
+    if (receiptPreview) {
+      setReceiptPreview(null);
+      focusScanInput();
+      return;
+    }
+    if (isCustomerSearchOpen) {
+      setIsCustomerSearchOpen(false);
+      if (!isPaymentOpen) focusScanInput();
+      return;
+    }
     setIsProductSearchOpen(false);
     setIsPaymentOpen(false);
     setIsParkedSalesOpen(false);
-    setIsCustomerSearchOpen(false);
     focusScanInput();
   });
 
+  const hasAnyModalOpenEvent = useEffectEvent(() => hasAnyModalOpen);
+
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
-      // Escape closes everything and focuses scanner
+      // Escape closes topmost modal and focuses scanner
       if (event.key === 'Escape') {
         event.preventDefault();
-        handleCloseAllModalsEvent();
+        handleEscapeEvent();
         return;
       }
 
       // Hotkey: Ctrl+B or Alt+B (Buscar producto)
-      if ((event.ctrlKey || event.altKey) && (event.key === 'b' || event.key === 'B')) {
+      if (
+        (event.ctrlKey || event.altKey) &&
+        (event.key === 'b' || event.key === 'B')
+      ) {
         event.preventDefault();
         handleOpenProductSearchEvent();
         return;
       }
 
-      // Hotkey: Ctrl+Enter or Alt+C (Cobrar / Facturar)
-      if ((event.ctrlKey && event.key === 'Enter') || (event.altKey && (event.key === 'c' || event.key === 'C'))) {
+      // Hotkey: Ctrl+Enter or Alt+C (Cobrar / Confirmar cobro)
+      if (
+        (event.ctrlKey && event.key === 'Enter') ||
+        (event.altKey && (event.key === 'c' || event.key === 'C'))
+      ) {
         event.preventDefault();
         handleOpenPaymentEvent();
         return;
       }
 
       // Hotkey: Ctrl+K or Alt+U (Buscar cliente)
-      if ((event.ctrlKey && (event.key === 'k' || event.key === 'K')) || (event.altKey && (event.key === 'u' || event.key === 'U'))) {
+      if (
+        (event.ctrlKey && (event.key === 'k' || event.key === 'K')) ||
+        (event.altKey && (event.key === 'u' || event.key === 'U'))
+      ) {
         event.preventDefault();
         handleOpenCustomerEvent();
         return;
@@ -944,8 +1460,8 @@ export default function CheckoutClient({
         return;
       }
 
-      // Single-key shortcuts when not typing in any text box:
-      if (isTypingTarget(event.target)) return;
+      // Single-key shortcuts only when no modal is open and not typing in an input
+      if (hasAnyModalOpenEvent() || isTypingTarget(event.target)) return;
 
       if (event.key === '/') {
         event.preventDefault();
@@ -970,7 +1486,9 @@ export default function CheckoutClient({
   }, []);
 
   // Display scale mode for 11" 2560x1600 tablets and high-density screens
-  const [displayScale, setDisplayScale] = useState<'normal' | 'large' | 'xlarge'>('normal');
+  const [displayScale, setDisplayScale] = useState<'normal' | 'large' | 'xlarge'>(
+    'normal'
+  );
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -980,7 +1498,6 @@ export default function CheckoutClient({
           setDisplayScale(saved);
           return;
         }
-        // Auto-detect high-resolution tablet (e.g. 2560x1600 on 11-inch) or high-DPI displays
         if (
           window.screen.width >= 2000 ||
           (window.screen.width >= 1200 && (window.devicePixelRatio ?? 1) >= 1.5)
@@ -1006,9 +1523,12 @@ export default function CheckoutClient({
         ? 'pos-scale-xlarge'
         : 'pos-scale-normal';
 
-  const activeReceiptSale = useMemo(
-    () => queuedSales.find((item) => item.id === activeReceiptId) ?? null,
-    [queuedSales, activeReceiptId]
+  const latestOfflineSale = useMemo(
+    () =>
+      queuedSales.find((item) => item.id === activeOfflineQueueId) ??
+      queuedSales[0] ??
+      null,
+    [queuedSales, activeOfflineQueueId]
   );
 
   return (
@@ -1018,20 +1538,29 @@ export default function CheckoutClient({
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs text-amber-900">
           <div className="flex items-center gap-2">
             <span
-              className={`h-2.5 w-2.5 rounded-full ${isOnline ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'}`}
+              className={`h-2.5 w-2.5 rounded-full ${
+                isOnline ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'
+              }`}
             />
-            <span className="font-bold">{isOnline ? 'Terminal En Línea' : 'Modo Sin Conexión Activado'}</span>
-            <span>• {queuedSales.length} venta(s) guardadas en cola local</span>
+            <span className="font-bold">
+              {isOnline ? 'Terminal en línea' : 'Modo sin conexión activado'}
+            </span>
+            <span>• {queuedSales.length} venta(s) guardada(s) en cola local</span>
           </div>
 
           <div className="flex items-center gap-2">
-            {activeReceiptSale ? (
+            {latestOfflineSale ? (
               <button
                 type="button"
-                onClick={() => setActiveReceiptId(activeReceiptSale.id)}
+                onClick={() =>
+                  setReceiptPreview({
+                    sale: latestOfflineSale.receipt,
+                    isOffline: true
+                  })
+                }
                 className="font-bold underline hover:text-amber-950"
               >
-                Ver recibo temporal ({activeReceiptSale.localReceiptNumber})
+                Ver ticket temporal ({latestOfflineSale.localReceiptNumber})
               </button>
             ) : null}
           </div>
@@ -1094,33 +1623,10 @@ export default function CheckoutClient({
         cart={cart}
         currencySymbol={currencySymbol}
         onUpdateQty={updateQty}
+        onEditWeightedItem={openEditWeightedItem}
         onRemoveItem={removeFromCart}
         onOpenProductSearch={() => setIsProductSearchOpen(true)}
       />
-
-      {/* Offline Receipt Preview if active */}
-      {activeReceiptSale ? (
-        <Card className="p-4">
-          <div className="flex items-center justify-between mb-4">
-            <h4 className="text-sm font-black text-stone-900">Recibo Local Sin Conexión</h4>
-            <button
-              type="button"
-              onClick={() => setActiveReceiptId(null)}
-              className="text-xs text-stone-500 hover:text-stone-800"
-            >
-              Ocultar
-            </button>
-          </div>
-          <ThermalReceipt
-            sale={activeReceiptSale.receipt}
-            shop={shop}
-            currencySymbol={currencySymbol}
-            receiptHeader={receiptHeader}
-            receiptFooter={receiptFooter}
-            receiptWidth={receiptWidth}
-          />
-        </Card>
-      ) : null}
 
       {/* Popups & Modals */}
       <ProductSearchModal
@@ -1129,7 +1635,7 @@ export default function CheckoutClient({
           setIsProductSearchOpen(false);
           focusScanInput();
         }}
-        products={products}
+        products={liveProducts}
         categories={categories}
         currencySymbol={currencySymbol}
         onSelectProduct={(product) => {
@@ -1137,7 +1643,9 @@ export default function CheckoutClient({
           const qtyMultiplier = !isNaN(parsedQty) && parsedQty > 0 ? parsedQty : 1;
           addToCart(product, qtyMultiplier);
           setScanQty('1');
-          focusScanInput();
+          if (product.baseUnitCode !== 'KG') {
+            focusScanInput();
+          }
         }}
       />
 
@@ -1168,6 +1676,7 @@ export default function CheckoutClient({
         notes={notes}
         onNotesChange={setNotes}
         selectedCustomer={selectedCustomer}
+        onOpenCustomerSearch={() => setIsCustomerSearchOpen(true)}
         paymentSummary={paymentSummary}
         getQuickCashAmounts={getQuickCashAmounts}
         getExactAmountForLine={getExactAmountForLine}
@@ -1199,15 +1708,61 @@ export default function CheckoutClient({
         isOpen={isCustomerSearchOpen}
         onClose={() => {
           setIsCustomerSearchOpen(false);
-          focusScanInput();
+          if (!isPaymentOpen) {
+            focusScanInput();
+          }
         }}
         customers={customers}
         selectedCustomerId={selectedCustomerId}
         currencySymbol={currencySymbol}
         onSelectCustomer={(c) => {
           setSelectedCustomerId(c?.id ?? null);
+          if (!isPaymentOpen) {
+            focusScanInput();
+          }
+        }}
+      />
+
+      <WeighProductModal
+        isOpen={weighModalContext !== null}
+        onClose={() => {
+          setWeighModalState(null);
           focusScanInput();
         }}
+        product={weighModalContext?.product ?? null}
+        currencySymbol={currencySymbol}
+        availableStockGrams={weighModalContext?.availableGrams ?? 0}
+        reservedInCartGrams={weighModalContext?.reservedGrams ?? 0}
+        initialWeightKg={weighModalContext?.initialWeightKg ?? null}
+        mode={weighModalContext?.mode ?? 'add'}
+        modalKey={weighModalContext?.openKey}
+        onConfirm={(product, weightKg) => {
+          if (weighModalContext?.mode === 'edit' && weighModalContext.editItemId) {
+            updateWeightedCartItem(weighModalContext.editItemId, weightKg);
+          } else {
+            addWeightedToCart(product, weightKg);
+          }
+          setWeighModalState(null);
+          focusScanInput();
+        }}
+      />
+
+      <ReceiptPreviewModal
+        isOpen={receiptPreview !== null}
+        onClose={() => {
+          setReceiptPreview(null);
+          focusScanInput();
+        }}
+        sale={receiptPreview?.sale ?? null}
+        shop={shop}
+        currencySymbol={currencySymbol}
+        receiptHeader={receiptHeader}
+        receiptFooter={receiptFooter}
+        receiptWidth={receiptWidth}
+        receiptShowBrandMark={receiptShowBrandMark}
+        printerSafeMode={printerSafeMode}
+        cashDrawerKickEnabled={cashDrawerKickEnabled}
+        isOfflineReceipt={receiptPreview?.isOffline ?? false}
       />
     </div>
   );

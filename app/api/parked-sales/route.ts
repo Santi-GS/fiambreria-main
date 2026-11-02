@@ -13,7 +13,7 @@ import {
   serializeParkedSale
 } from '@/lib/parked-sales';
 import { getCustomerDisplayName } from '@/lib/customers';
-import { collapseSaleItems, normalizeText } from '@/lib/inventory';
+import { collapseSaleItems, normalizeText, roundCurrency } from '@/lib/inventory';
 import { buildVariantLabel } from '@/lib/product-merchandising';
 import { prisma } from '@/lib/prisma';
 
@@ -80,7 +80,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ parkedSales: parkedSales.map(serializeParkedSale) });
   } catch (error) {
-    return apiErrorResponse(error, 'Unable to load saved checkout entries.');
+    return apiErrorResponse(error, 'No se pudieron cargar las ventas en espera.');
   }
 }
 
@@ -92,12 +92,18 @@ export async function POST(request: Request) {
 
     if (!parsed.success) {
       return NextResponse.json(
-        { error: parsed.error.issues[0]?.message ?? 'Invalid saved checkout payload.' },
+        { error: parsed.error.issues[0]?.message ?? 'Los datos del carrito en espera no son válidos.' },
         { status: 400 }
       );
     }
 
-    const items = collapseSaleItems(parsed.data.items);
+    const items = collapseSaleItems(
+      parsed.data.items.map((item) => ({
+        productId: item.productId,
+        variantId: item.variantId ?? item.productVariantId ?? null,
+        qty: item.qty
+      }))
+    );
 
     await cleanupExpiredParkedSales(prisma, shopId);
 
@@ -112,7 +118,8 @@ export async function POST(request: Request) {
           id: { in: items.map((item) => item.productId) }
         },
         include: {
-          variants: true
+          variants: true,
+          baseUnitOfMeasure: true
         }
       }),
       parsed.data.customerId
@@ -128,7 +135,7 @@ export async function POST(request: Request) {
 
     if (parsed.data.customerId && !customer) {
       return NextResponse.json(
-        { error: 'Selected customer was not found or is archived.' },
+        { error: 'El cliente seleccionado no fue encontrado o está archivado.' },
         { status: 404 }
       );
     }
@@ -146,15 +153,22 @@ export async function POST(request: Request) {
         throw new Error('VARIANT_NOT_FOUND');
       }
 
-      const unitPrice = Number(variant?.priceOverride ?? product.price);
+      const rawUnitPrice = Number(variant?.priceOverride ?? product.price);
+      const isKg = product.baseUnitOfMeasure?.code === 'KG' || !Number.isInteger(item.qty);
+      const lineTotal = roundCurrency(rawUnitPrice * item.qty);
+      const baseVariantLabel = variant ? buildVariantLabel(variant) || null : null;
+      const weightLabel = isKg ? `${item.qty.toFixed(3)} Kg` : null;
+
       return {
         productId: item.productId,
         productVariantId: variant?.id ?? null,
         productName: product.name,
-        variantLabel: variant ? buildVariantLabel(variant) || null : null,
-        qty: item.qty,
-        unitPrice,
-        lineTotal: unitPrice * item.qty
+        variantLabel: baseVariantLabel && weightLabel
+          ? `${baseVariantLabel} · ${weightLabel}`
+          : baseVariantLabel ?? weightLabel,
+        qty: isKg ? 1 : Math.max(1, Math.round(item.qty)),
+        unitPrice: isKg ? lineTotal : rawUnitPrice,
+        lineTotal
       };
     });
 
@@ -233,18 +247,18 @@ export async function POST(request: Request) {
   } catch (error) {
     if (error instanceof Error && error.message === 'PRODUCT_NOT_FOUND') {
       return NextResponse.json(
-        { error: 'One or more selected products were not found.' },
+        { error: 'Uno o más productos seleccionados no fueron encontrados.' },
         { status: 404 }
       );
     }
 
     if (error instanceof Error && error.message === 'VARIANT_NOT_FOUND') {
       return NextResponse.json(
-        { error: 'One or more selected variants were not found.' },
+        { error: 'Una o más variantes seleccionadas ya no están disponibles.' },
         { status: 404 }
       );
     }
 
-    return apiErrorResponse(error, 'Unable to save the checkout draft.');
+    return apiErrorResponse(error, 'No fue posible guardar el carrito en espera.');
   }
 }

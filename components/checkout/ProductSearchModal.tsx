@@ -84,7 +84,8 @@ function ProductSearchDialog({
             type="button"
             onClick={onClose}
             className="flex h-11 w-11 items-center justify-center rounded-2xl bg-stone-100 text-stone-600 transition hover:bg-stone-200 hover:text-stone-900 active:scale-95"
-            title="Cerrar [Escape]"
+            title="Cerrar [Esc]"
+            aria-label="Cerrar búsqueda de productos"
           >
             ✕
           </button>
@@ -96,7 +97,7 @@ function ProductSearchDialog({
             <input
               ref={searchInputRef}
               type="text"
-              placeholder="Buscar por nombre, código de barras, SKU o categoría..."
+              placeholder="Buscar por nombre, código de barras, código interno o categoría..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="h-12 w-full rounded-2xl border-2 border-stone-300 bg-white px-4 text-sm font-semibold text-stone-900 placeholder:text-stone-400 focus:border-sky-600 focus:outline-none"
@@ -147,6 +148,7 @@ function ProductSearchDialog({
           {filteredProducts.length > 0 ? (
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {filteredProducts.map((product) => {
+                const isWeighted = product.baseUnitCode === 'KG';
                 const isOutOfStock = product.stockQty <= 0;
 
                 return (
@@ -170,8 +172,8 @@ function ProductSearchDialog({
                             className="h-full w-full object-cover"
                           />
                         ) : (
-                          <div className="flex h-full w-full items-center justify-center text-xs font-bold text-stone-400">
-                            PROD
+                          <div className="flex h-full w-full items-center justify-center text-[10px] font-bold text-stone-400">
+                            SIN FOTO
                           </div>
                         )}
                       </div>
@@ -181,7 +183,7 @@ function ProductSearchDialog({
                           {product.variantLabel ?? product.category?.name ?? 'Estándar'}
                         </div>
                         <div className="mt-1 text-[11px] text-stone-400">
-                          {product.barcode ? `Cód: ${product.barcode}` : product.sku ? `SKU: ${product.sku}` : ''}
+                          {product.barcode ? `Cód.: ${product.barcode}` : product.sku ? `Cód. int.: ${product.sku}` : ''}
                         </div>
                       </div>
                     </div>
@@ -189,17 +191,24 @@ function ProductSearchDialog({
                     <div className="mt-3 flex items-center justify-between border-t border-stone-100 pt-2 text-xs">
                       <span className="text-base font-black text-emerald-700">
                         {money(product.price, currencySymbol)}
+                        {isWeighted ? (
+                          <span className="ml-0.5 text-[10px] font-bold text-stone-500">/Kg</span>
+                        ) : null}
                       </span>
                       <span
                         className={`rounded-full px-2 py-0.5 font-bold ${
                           isOutOfStock
                             ? 'bg-red-50 text-red-700'
-                            : product.stockQty <= 5
+                            : (isWeighted ? product.stockQty <= 1000 : product.stockQty <= 5)
                               ? 'bg-amber-50 text-amber-700'
                               : 'bg-emerald-50 text-emerald-700'
                         }`}
                       >
-                        {isOutOfStock ? 'Agotado' : `${product.stockQty} disp.`}
+                        {isOutOfStock
+                          ? 'Agotado'
+                          : isWeighted
+                            ? `${(product.stockQty / 1000).toFixed(3).replace('.', ',')} Kg`
+                            : `${product.stockQty} disp.`}
                       </span>
                     </div>
                   </button>
@@ -217,7 +226,7 @@ function ProductSearchDialog({
         {/* Footer */}
         <div className="flex items-center justify-between border-t border-stone-100 bg-stone-50/50 px-5 py-3 text-xs text-stone-500">
           <span>{filteredProducts.length} producto(s) encontrado(s)</span>
-          <span>Presione <kbd className="rounded bg-stone-200 px-1.5 py-0.5 font-mono text-[10px]">Escape</kbd> para cerrar</span>
+          <span>Presione <kbd className="rounded bg-stone-200 px-1.5 py-0.5 font-mono text-[10px]">Esc</kbd> para cerrar</span>
         </div>
       </div>
     </div>

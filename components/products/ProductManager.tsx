@@ -312,7 +312,11 @@ export default function ProductManager({
                         )}
                       </td>
                       <td className="px-4 py-4">
-                        <div className="font-bold text-stone-900">{product.stockQty}</div>
+                        <div className="font-bold text-stone-900">
+                          {product.baseUnitOfMeasure?.code === 'KG'
+                            ? `${(product.stockQty / 1000).toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 3 })} Kg`
+                            : `${product.stockQty} unid.`}
+                        </div>
                         <div className="mt-1 text-[11px] text-stone-500">
                           {nextExpiryBatch?.expiryDate
                             ? `Vence: ${shortDate(nextExpiryBatch.expiryDate)}`

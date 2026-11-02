@@ -44,7 +44,7 @@ function CustomerSearchDialog({
   }, [customers, search]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
       {/* Backdrop */}
       <div
         className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs transition-opacity"
@@ -81,7 +81,8 @@ function CustomerSearchDialog({
             type="button"
             onClick={onClose}
             className="flex h-11 w-11 items-center justify-center rounded-2xl bg-stone-100 text-stone-600 transition hover:bg-stone-200 hover:text-stone-900 active:scale-95"
-            title="Cerrar [Escape]"
+            title="Cerrar [Esc]"
+            aria-label="Cerrar búsqueda de clientes"
           >
             ✕
           </button>
@@ -91,7 +92,7 @@ function CustomerSearchDialog({
         <div className="border-b border-stone-100 bg-stone-50/70 p-4 space-y-3">
           <Input
             ref={searchInputRef}
-            placeholder="Buscar por nombre, teléfono, email o CUIT..."
+            placeholder="Buscar por nombre, teléfono, correo o DNI / CUIT..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="h-12 bg-white text-sm font-semibold"
@@ -165,7 +166,7 @@ function CustomerSearchDialog({
         {/* Footer */}
         <div className="flex justify-end border-t border-stone-100 bg-stone-50/50 p-4">
           <Button type="button" variant="secondary" onClick={onClose}>
-            Cerrar [Escape]
+            Cerrar [Esc]
           </Button>
         </div>
       </div>

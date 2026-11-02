@@ -129,6 +129,7 @@ export default function ProductFormModal({
 
   const initialFormState = useMemo<ProductFormData>(() => {
     if (editingProduct) {
+      const isBaseKg = editingProduct.baseUnitOfMeasure?.code === 'KG';
       return {
         categoryId: editingProduct.categoryId ?? '',
         baseUnitOfMeasureId: editingProduct.baseUnitOfMeasureId ?? defaultBaseUnitId,
@@ -138,8 +139,8 @@ export default function ProductFormModal({
         description: editingProduct.description ?? '',
         cost: editingProduct.cost,
         price: editingProduct.price,
-        stockQty: String(editingProduct.stockQty),
-        reorderPoint: String(editingProduct.reorderPoint),
+        stockQty: isBaseKg ? String(editingProduct.stockQty / 1000) : String(editingProduct.stockQty),
+        reorderPoint: isBaseKg ? String(editingProduct.reorderPoint / 1000) : String(editingProduct.reorderPoint),
         trackBatches: editingProduct.trackBatches,
         trackExpiry: editingProduct.trackExpiry,
         changeNote: '',
@@ -188,12 +189,52 @@ export default function ProductFormModal({
     };
   }, [editingProduct, defaultBaseUnitId, inventoryDefaults]);
 
+  const pieceUnit = units.find((u) => u.code === 'PIECE');
+  const kgUnit = units.find((u) => u.code === 'KG');
+
+  const initialPurchaseMode = useMemo<'PIECE' | 'KG'>(() => {
+    if (!editingProduct) return 'PIECE';
+    const isBaseKg = editingProduct.baseUnitOfMeasure?.code === 'KG';
+    if (isBaseKg) {
+      const hasPiece = editingProduct.uomConversions.some(
+        (c) => c.unitOfMeasure?.code === 'PIECE' || c.unitOfMeasureId === pieceUnit?.id
+      );
+      return hasPiece ? 'PIECE' : 'KG';
+    } else {
+      const hasKg = editingProduct.uomConversions.some(
+        (c) => c.unitOfMeasure?.code === 'KG' || c.unitOfMeasureId === kgUnit?.id
+      );
+      return hasKg ? 'KG' : 'PIECE';
+    }
+  }, [editingProduct, pieceUnit, kgUnit]);
+
+  const initialEquivalentKg = useMemo<string>(() => {
+    if (!editingProduct) return '';
+    const isBaseKg = editingProduct.baseUnitOfMeasure?.code === 'KG';
+    if (isBaseKg && pieceUnit) {
+      const conv = editingProduct.uomConversions.find(
+        (c) => c.unitOfMeasure?.code === 'PIECE' || c.unitOfMeasureId === pieceUnit.id
+      );
+      return conv ? String(conv.ratioToBase) : '';
+    } else if (!isBaseKg && kgUnit) {
+      const conv = editingProduct.uomConversions.find(
+        (c) => c.unitOfMeasure?.code === 'KG' || c.unitOfMeasureId === kgUnit.id
+      );
+      return conv ? String(conv.ratioToBase) : '';
+    }
+    return '';
+  }, [editingProduct, pieceUnit, kgUnit]);
+
   const [form, setForm] = useState<ProductFormData>(initialFormState);
+  const [purchaseUnitMode, setPurchaseUnitMode] = useState<'PIECE' | 'KG'>(initialPurchaseMode);
+  const [unitEquivalentKg, setUnitEquivalentKg] = useState<string>(initialEquivalentKg);
 
   // Sync form when editingProduct or isOpen changes
   useEffect(() => {
     if (isOpen) {
       setForm(initialFormState);
+      setPurchaseUnitMode(initialPurchaseMode);
+      setUnitEquivalentKg(initialEquivalentKg);
       setError('');
       setActiveTab('details');
       // Focus name input shortly after open
@@ -201,7 +242,7 @@ export default function ProductFormModal({
         nameInputRef.current?.focus();
       }, 50);
     }
-  }, [isOpen, initialFormState]);
+  }, [isOpen, initialFormState, initialPurchaseMode, initialEquivalentKg]);
 
   // Handle ESC key
   useEffect(() => {
@@ -356,6 +397,33 @@ export default function ProductFormModal({
 
     setLoading(true);
 
+    // Synchronize cross-unit conversions between purchase unit and sale unit
+    let finalConversions = [...form.uomConversions];
+    const isSellingKg = selectedBaseUnit?.code === 'KG';
+    const isBuyingPiece = purchaseUnitMode === 'PIECE';
+    const isSellingPiece = selectedBaseUnit?.code !== 'KG';
+    const isBuyingKg = purchaseUnitMode === 'KG';
+
+    if (isSellingKg && isBuyingPiece && pieceUnit) {
+      const ratio = Number(unitEquivalentKg);
+      if (ratio > 0) {
+        finalConversions = finalConversions.filter((c) => c.unitOfMeasureId !== pieceUnit.id);
+        finalConversions.push({
+          unitOfMeasureId: pieceUnit.id,
+          ratioToBase: String(ratio)
+        });
+      }
+    } else if (isSellingPiece && isBuyingKg && kgUnit) {
+      const ratio = Number(unitEquivalentKg);
+      if (ratio > 0) {
+        finalConversions = finalConversions.filter((c) => c.unitOfMeasureId !== kgUnit.id);
+        finalConversions.push({
+          unitOfMeasureId: kgUnit.id,
+          ratioToBase: String(ratio)
+        });
+      }
+    }
+
     const payload = {
       ...form,
       categoryId: form.categoryId || null,
@@ -365,8 +433,9 @@ export default function ProductFormModal({
       changeNote: form.changeNote || null,
       cost: Number(form.cost),
       price: Number(form.price),
-      reorderPoint: Number(form.reorderPoint),
-      uomConversions: form.uomConversions.map((conversion) => ({
+      stockQty: isSellingKg ? Math.round(Number(form.stockQty || 0) * 1000) : Math.round(Number(form.stockQty || 0)),
+      reorderPoint: isSellingKg ? Math.round(Number(form.reorderPoint || 0) * 1000) : Math.round(Number(form.reorderPoint || 0)),
+      uomConversions: finalConversions.map((conversion) => ({
         unitOfMeasureId: conversion.unitOfMeasureId,
         ratioToBase: Number(conversion.ratioToBase)
       })),
@@ -652,9 +721,163 @@ export default function ProductFormModal({
                   <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-stone-400">
                     Precios e inventario
                   </div>
+
+                  {/* Selectores de Modalidad de Venta y Compra (Unidad vs Kg) */}
+                  <div className="rounded-2xl border border-stone-200 bg-white p-4 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div className="text-xs font-black uppercase tracking-wider text-stone-700">
+                        Modalidad de Comercialización
+                      </div>
+                      <span className="text-[11px] text-stone-400">
+                        Venta directa y reposición
+                      </span>
+                    </div>
+
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      {/* VENTA */}
+                      <div className="rounded-xl border border-stone-100 bg-stone-50/70 p-3 space-y-2">
+                        <div className="text-xs font-bold text-stone-800">
+                          ¿Cómo se vende en caja? (Unidad base)
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (pieceUnit) {
+                                setForm((current) => ({
+                                  ...current,
+                                  baseUnitOfMeasureId: pieceUnit.id
+                                }));
+                              }
+                            }}
+                            className={`flex items-center justify-center gap-1.5 rounded-xl py-2 px-3 text-xs font-bold transition ${
+                              selectedBaseUnit?.code !== 'KG'
+                                ? 'bg-[#1e3a5f] text-white shadow-sm ring-2 ring-[#1e3a5f]/20'
+                                : 'border border-stone-200 bg-white text-stone-700 hover:border-stone-300'
+                            }`}
+                          >
+                            <span>📦 Por Unidad</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (kgUnit) {
+                                setForm((current) => ({
+                                  ...current,
+                                  baseUnitOfMeasureId: kgUnit.id
+                                }));
+                              }
+                            }}
+                            className={`flex items-center justify-center gap-1.5 rounded-xl py-2 px-3 text-xs font-bold transition ${
+                              selectedBaseUnit?.code === 'KG'
+                                ? 'bg-amber-600 text-white shadow-sm ring-2 ring-amber-600/20'
+                                : 'border border-stone-200 bg-white text-stone-700 hover:border-stone-300'
+                            }`}
+                          >
+                            <span>⚖️ Por Kilogramo (Kg)</span>
+                          </button>
+                        </div>
+                        <p className="text-[11px] text-stone-500">
+                          {selectedBaseUnit?.code === 'KG'
+                            ? 'En el punto de venta se abrirá la ventana de pesaje interactiva para ingresar gramos o kilos.'
+                            : 'Se agrega directamente al carrito por unidades enteras.'}
+                        </p>
+                      </div>
+
+                      {/* COMPRA */}
+                      <div className="rounded-xl border border-stone-100 bg-stone-50/70 p-3 space-y-2">
+                        <div className="text-xs font-bold text-stone-800">
+                          ¿Cómo se compra al proveedor?
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setPurchaseUnitMode('PIECE')}
+                            className={`flex items-center justify-center gap-1.5 rounded-xl py-2 px-3 text-xs font-bold transition ${
+                              purchaseUnitMode === 'PIECE'
+                                ? 'bg-[#1e3a5f] text-white shadow-sm ring-2 ring-[#1e3a5f]/20'
+                                : 'border border-stone-200 bg-white text-stone-700 hover:border-stone-300'
+                            }`}
+                          >
+                            <span>📦 Por Unidad</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setPurchaseUnitMode('KG')}
+                            className={`flex items-center justify-center gap-1.5 rounded-xl py-2 px-3 text-xs font-bold transition ${
+                              purchaseUnitMode === 'KG'
+                                ? 'bg-amber-600 text-white shadow-sm ring-2 ring-amber-600/20'
+                                : 'border border-stone-200 bg-white text-stone-700 hover:border-stone-300'
+                            }`}
+                          >
+                            <span>⚖️ Por Kilogramo (Kg)</span>
+                          </button>
+                        </div>
+                        <p className="text-[11px] text-stone-500">
+                          {purchaseUnitMode === 'KG'
+                            ? 'Los costos se ingresan por kilogramo.'
+                            : 'Los costos se ingresan por unidad o pieza cerrada.'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Equivalencia cruzada si Venta y Compra difieren */}
+                    {selectedBaseUnit?.code === 'KG' && purchaseUnitMode === 'PIECE' && (
+                      <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-3.5 space-y-2">
+                        <div className="flex items-center gap-2 text-xs font-bold text-amber-900">
+                          <span>⚖️ Factor de equivalencia de compra a venta</span>
+                        </div>
+                        <p className="text-xs text-amber-800">
+                          Compras por unidad (ej. horma o pieza cerrada) y vendes fraccionado por Kg. ¿Cuánto pesa 1 unidad en promedio?
+                        </p>
+                        <div className="flex items-center gap-3">
+                          <span className="text-xs font-semibold text-stone-700">1 Unidad =</span>
+                          <div className="w-32">
+                            <Input
+                              type="number"
+                              step="any"
+                              min="0.01"
+                              placeholder="Ej. 4.0"
+                              value={unitEquivalentKg}
+                              onChange={(e) => setUnitEquivalentKg(e.target.value)}
+                            />
+                          </div>
+                          <span className="text-xs font-bold text-stone-900">Kg</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {selectedBaseUnit?.code !== 'KG' && purchaseUnitMode === 'KG' && (
+                      <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-3.5 space-y-2">
+                        <div className="flex items-center gap-2 text-xs font-bold text-amber-900">
+                          <span>⚖️ Factor de equivalencia de compra a venta</span>
+                        </div>
+                        <p className="text-xs text-amber-800">
+                          Compras por Kg y vendes por unidad. ¿Cuántas unidades rinde 1 Kg?
+                        </p>
+                        <div className="flex items-center gap-3">
+                          <span className="text-xs font-semibold text-stone-700">1 Kg =</span>
+                          <div className="w-32">
+                            <Input
+                              type="number"
+                              step="any"
+                              min="0.01"
+                              placeholder="Ej. 5"
+                              value={unitEquivalentKg}
+                              onChange={(e) => setUnitEquivalentKg(e.target.value)}
+                            />
+                          </div>
+                          <span className="text-xs font-bold text-stone-900">Unidades</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
                   <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                     <div>
-                      <FieldLabel required>Precio de venta</FieldLabel>
+                      <FieldLabel required>
+                        {selectedBaseUnit?.code === 'KG' ? 'Precio de venta ($ por Kg)' : 'Precio de venta ($ por Unidad)'}
+                      </FieldLabel>
                       <Input
                         type="number"
                         step="0.01"
@@ -667,7 +890,9 @@ export default function ProductFormModal({
                     </div>
                     {canViewPurchaseCosts ? (
                       <div>
-                        <FieldLabel>Precio de costo</FieldLabel>
+                        <FieldLabel>
+                          {purchaseUnitMode === 'KG' ? 'Precio de costo ($ por Kg)' : 'Precio de costo ($ por Unidad)'}
+                        </FieldLabel>
                         <Input
                           type="number"
                           step="0.01"
@@ -680,7 +905,9 @@ export default function ProductFormModal({
                     ) : null}
                     <div>
                       <FieldLabel>
-                        {editingProduct ? 'Existencias actuales' : 'Stock inicial'}
+                        {editingProduct
+                          ? `Existencias actuales (${selectedBaseUnit?.code === 'KG' ? 'Kg' : 'Unidades'})`
+                          : `Stock inicial (${selectedBaseUnit?.code === 'KG' ? 'Kg' : 'Unidades'})`}
                       </FieldLabel>
                       <Input
                         type="number"
@@ -719,7 +946,7 @@ export default function ProductFormModal({
                       Margen proyectado: {currentMargin.message} ({currentMargin.percentage.toFixed(1)}%)
                     </div>
                     <div className="rounded-2xl border border-stone-200 bg-white px-4 py-3 text-xs text-stone-600 flex items-center">
-                      Unidad base: <span className="ml-1 font-bold text-stone-900">{selectedBaseUnit?.name ?? 'Sin seleccionar'}</span>
+                      Unidad base de venta: <span className="ml-1 font-bold text-stone-900">{selectedBaseUnit?.name ?? 'Sin seleccionar'}</span>
                     </div>
                   </div>
                 </div>

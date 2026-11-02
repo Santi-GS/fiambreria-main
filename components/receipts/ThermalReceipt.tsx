@@ -4,10 +4,11 @@ import { useEffect, useMemo, useState } from 'react';
 import Button from '@/components/ui/Button';
 import { openCashDrawer } from '@/lib/cash-drawer';
 import { dateTime, money, shortDate } from '@/lib/format';
+import { getPaymentMethodLabel } from '@/lib/payments';
 
-type ReceiptWidth = '58mm' | '80mm';
+export type ReceiptWidth = '58mm' | '80mm';
 
-type ReceiptItem = {
+export type ReceiptItem = {
   id: string;
   productName: string;
   qty: number;
@@ -15,7 +16,7 @@ type ReceiptItem = {
   lineTotal: string;
 };
 
-type ReceiptPayment = {
+export type ReceiptPayment = {
   id: string;
   method: string;
   amount: string;
@@ -23,7 +24,7 @@ type ReceiptPayment = {
   createdAt: string;
 };
 
-type ReceiptSale = {
+export type ReceiptSale = {
   id: string;
   saleNumber: string;
   receiptNumber: string;
@@ -48,7 +49,7 @@ type ReceiptSale = {
   items: ReceiptItem[];
 };
 
-type ReceiptShop = {
+export type ReceiptShop = {
   name: string;
   address: string | null;
   phone: string | null;
@@ -149,7 +150,8 @@ export default function ThermalReceipt({
   printerSafeMode = true,
   cashDrawerKickEnabled = false,
   autoprint = false,
-  testMode = false
+  testMode = false,
+  hideActions = false
 }: {
   sale: ReceiptSale;
   shop: ReceiptShop;
@@ -162,6 +164,7 @@ export default function ThermalReceipt({
   cashDrawerKickEnabled?: boolean;
   autoprint?: boolean;
   testMode?: boolean;
+  hideActions?: boolean;
 }) {
   const paperWidth = receiptWidth === '58mm' ? '58mm' : '80mm';
   const compact = paperWidth === '58mm' || printerSafeMode;
@@ -174,6 +177,7 @@ export default function ThermalReceipt({
     [sale.receiptNumber]
   );
   const [drawerMessage, setDrawerMessage] = useState('');
+  const [drawerTone, setDrawerTone] = useState<'success' | 'warning' | 'error'>('success');
   const [drawerBusy, setDrawerBusy] = useState(false);
 
   useEffect(() => {
@@ -201,8 +205,10 @@ export default function ThermalReceipt({
         triggeredAt: new Date().toISOString()
       });
 
+      setDrawerTone(!result.ok ? 'error' : result.mode === 'browser-event' ? 'warning' : 'success');
       setDrawerMessage(result.message);
     } catch (error) {
+      setDrawerTone('error');
       setDrawerMessage(
         error instanceof Error
           ? `No se pudo activar el cajón de efectivo: ${error.message}`
@@ -227,10 +233,30 @@ export default function ThermalReceipt({
             background: #fff !important;
             margin: 0 !important;
             padding: 0 !important;
+            overflow: visible !important;
+            height: auto !important;
           }
 
           body * {
             visibility: hidden;
+          }
+
+          .receipt-modal-portal,
+          .receipt-modal-dialog,
+          .receipt-modal-scroll {
+            position: static !important;
+            inset: auto !important;
+            overflow: visible !important;
+            max-height: none !important;
+            height: auto !important;
+            width: auto !important;
+            max-width: none !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            border: 0 !important;
+            box-shadow: none !important;
+            background: transparent !important;
+            transform: none !important;
           }
 
           .receipt-root,
@@ -246,6 +272,7 @@ export default function ThermalReceipt({
             max-width: ${paperWidth} !important;
             margin: 0 !important;
             padding: 0 !important;
+            border: 0 !important;
             border-radius: 0 !important;
             box-shadow: none !important;
           }
@@ -256,31 +283,31 @@ export default function ThermalReceipt({
         }
       `}</style>
 
-      <div className="receipt-print-hide flex flex-wrap gap-3">
-        <Button type="button" onClick={() => window.print()}>
-          {testMode ? 'Imprimir página de prueba' : 'Imprimir recibo'}
-        </Button>
-        {cashDrawerKickEnabled ? (
-          <Button type="button" variant="secondary" onClick={handleDrawerKick} disabled={drawerBusy}>
-            {drawerBusy ? 'Activando caja…' : 'Abrir cajón de efectivo'}
+      {!hideActions ? (
+        <div className="receipt-print-hide flex flex-wrap gap-3">
+          <Button type="button" onClick={() => window.print()}>
+            {testMode ? 'Imprimir página de prueba' : 'Imprimir recibo'}
           </Button>
-        ) : null}
-        {drawerMessage ? (
-          <div
-            className={`max-w-xl rounded-2xl px-4 py-3 text-sm ${
-              drawerMessage.toLowerCase().includes('unreachable') ||
-              drawerMessage.toLowerCase().includes('unable') ||
-              drawerMessage.toLowerCase().includes('rejected')
-                ? 'border border-red-200 bg-red-50 text-red-800'
-                : drawerMessage.toLowerCase().includes('fallback')
-                  ? 'border border-amber-200 bg-amber-50 text-amber-800'
-                  : 'border border-emerald-200 bg-emerald-50 text-emerald-800'
-            }`}
-          >
-            {drawerMessage}
-          </div>
-        ) : null}
-      </div>
+          {cashDrawerKickEnabled ? (
+            <Button type="button" variant="secondary" onClick={handleDrawerKick} disabled={drawerBusy}>
+              {drawerBusy ? 'Activando caja…' : 'Abrir cajón de efectivo'}
+            </Button>
+          ) : null}
+          {drawerMessage ? (
+            <div
+              className={`max-w-xl rounded-2xl px-4 py-3 text-sm ${
+                drawerTone === 'error'
+                  ? 'border border-red-200 bg-red-50 text-red-800'
+                  : drawerTone === 'warning'
+                    ? 'border border-amber-200 bg-amber-50 text-amber-800'
+                    : 'border border-emerald-200 bg-emerald-50 text-emerald-800'
+              }`}
+            >
+              {drawerMessage}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
       <div
         className={`receipt-root mx-auto border border-stone-200 bg-white ${
@@ -302,10 +329,13 @@ export default function ThermalReceipt({
               {shop.address}
             </div>
           ) : null}
-          <div className={`mt-1 ${compact ? 'text-[10px]' : 'text-[11px]'} text-stone-600`}>
-            {shop.phone || 'N/A'}
-            {shop.email ? ` | ${shop.email}` : ''}
-          </div>
+          {shop.phone || shop.email ? (
+            <div className={`mt-1 ${compact ? 'text-[10px]' : 'text-[11px]'} text-stone-600`}>
+              {shop.phone || ''}
+              {shop.phone && shop.email ? ' | ' : ''}
+              {shop.email || ''}
+            </div>
+          ) : null}
           {printerSafeMode ? (
             <div
               className={`mt-2 ${
@@ -341,20 +371,12 @@ export default function ThermalReceipt({
           <div className="flex justify-between gap-3">
             <span>Pago</span>
             <span className="text-right">
-              {sale.paymentMethod === 'Cash'
-                ? 'Efectivo'
-                : sale.paymentMethod === 'Card'
-                ? 'Tarjeta'
-                : sale.paymentMethod === 'E-Wallet'
-                ? 'Billetera virtual'
-                : sale.paymentMethod === 'Bank Transfer'
-                ? 'Transferencia bancaria'
-                : sale.paymentMethod}
+              {getPaymentMethodLabel(sale.paymentMethod)}
             </span>
           </div>
           <div className="flex justify-between gap-3">
             <span>Cliente</span>
-            <span className="text-right">{sale.customerName ?? 'Cliente general'}</span>
+            <span className="text-right">{sale.customerName ?? 'Consumidor Final'}</span>
           </div>
           {sale.customerBusinessName ? (
             <div className="flex justify-between gap-3">
@@ -429,17 +451,7 @@ export default function ThermalReceipt({
           {sale.payments.map((payment) => (
             <div key={payment.id} className="rounded-2xl border border-stone-200 px-3 py-2">
               <div className="flex justify-between gap-3">
-                <span>
-                  {payment.method === 'Cash'
-                    ? 'Efectivo'
-                    : payment.method === 'Card'
-                    ? 'Tarjeta'
-                    : payment.method === 'E-Wallet'
-                    ? 'Billetera virtual'
-                    : payment.method === 'Bank Transfer'
-                    ? 'Transferencia bancaria'
-                    : payment.method}
-                </span>
+                <span>{getPaymentMethodLabel(payment.method)}</span>
                 <span className="text-right">{money(payment.amount, currencySymbol)}</span>
               </div>
               {payment.referenceNumber ? (

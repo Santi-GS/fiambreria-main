@@ -17,6 +17,8 @@ export type Product = {
   stockQty: number;
   categoryId: string | null;
   imageUrl: string | null;
+  /** Base unit code for sale: 'PIECE', 'KG', etc. */
+  baseUnitCode: string;
   category?: { id: string; name: string } | null;
 };
 

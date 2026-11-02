@@ -141,9 +141,9 @@ export default function PosHeader({
                         ? 'bg-sky-600 text-white shadow-2xs font-black'
                         : 'text-stone-600 hover:text-stone-900'
                     }`}
-                    title="Escala 120% optimizada para Tablet 11 pulgadas (2560x1600)"
+                    title="Escala 120% optimizada para tableta de 11 pulgadas (2560x1600)"
                   >
-                    120% Tablet
+                    120% Tableta
                   </button>
                   <button
                     type="button"
@@ -242,7 +242,7 @@ export default function PosHeader({
                 <input
                   ref={scanInputRef}
                   type="text"
-                  placeholder="CÓDIGO DE BARRAS / SKU"
+                  placeholder="CÓDIGO DE BARRAS O CÓD. INTERNO"
                   value={scanQuery}
                   onChange={(e) => onScanQueryChange(e.target.value)}
                   autoCapitalize="off"
@@ -277,7 +277,9 @@ export default function PosHeader({
         {/* Right Section: Big Total Card & Cobrar Button */}
         <div className="flex min-w-[280px] flex-col justify-between rounded-3xl border border-slate-800 bg-[#0f172a] p-5 text-white shadow-xl sm:min-w-[320px] 2xl:min-w-[380px] 2xl:p-6">
           <div className="flex items-center justify-between">
-            <span className="text-sm font-black tracking-widest text-amber-400 2xl:text-base">TOTAL $</span>
+            <span className="text-sm font-black tracking-widest text-amber-400 2xl:text-base">
+              TOTAL {currencySymbol}
+            </span>
             <button
               type="button"
               onClick={onOpenPayment}
@@ -300,8 +302,8 @@ export default function PosHeader({
           </div>
 
           <div className="flex items-center justify-between border-t border-slate-800 pt-2.5 text-xs font-bold text-amber-400/90 2xl:text-sm">
-            <span>Items: {cartItemCount}</span>
-            <span>Prod: {Number(cartTotalUnits.toFixed(3))}</span>
+            <span>Artículos: {cartItemCount}</span>
+            <span>Cantidad: {Number(cartTotalUnits.toFixed(3))}</span>
           </div>
         </div>
       </div>

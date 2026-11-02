@@ -40,11 +40,11 @@ export async function DELETE(
     });
 
     if (!parkedSale) {
-      return NextResponse.json({ error: 'Saved checkout entry not found.' }, { status: 404 });
+      return NextResponse.json({ error: 'No se encontró la venta en espera seleccionada.' }, { status: 404 });
     }
 
     if (parkedSale.cashierUserId !== userId && !canManageAllParkedSales(role)) {
-      return NextResponse.json({ error: 'You do not have access to this saved checkout entry.' }, { status: 403 });
+      return NextResponse.json({ error: 'No tiene permisos para modificar esta venta en espera.' }, { status: 403 });
     }
 
     await prisma.$transaction(async (tx) => {
@@ -75,6 +75,6 @@ export async function DELETE(
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    return apiErrorResponse(error, 'Unable to cancel the saved checkout entry.');
+    return apiErrorResponse(error, 'No fue posible cancelar la venta en espera.');
   }
 }

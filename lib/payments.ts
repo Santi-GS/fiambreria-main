@@ -22,6 +22,26 @@ export function requiresReferenceNumber(method: PaymentMethod) {
   return method === 'Card' || method === 'E-Wallet' || method === 'Bank Transfer';
 }
 
+export function getPaymentMethodLabel(method: string | null | undefined) {
+  switch (method) {
+    case 'Cash':
+      return 'Efectivo';
+    case 'Card':
+      return 'Tarjeta';
+    case 'E-Wallet':
+      return 'Billetera virtual';
+    case 'Bank Transfer':
+      return 'Transferencia bancaria';
+    case 'Split':
+      return 'Pago dividido';
+    case 'Customer Credit':
+    case 'Credit':
+      return 'Cuenta corriente (Crédito)';
+    default:
+      return method || 'Otro';
+  }
+}
+
 function normalizeReferenceNumber(referenceNumber?: string | null) {
   const normalized = referenceNumber?.trim() ?? '';
   return normalized || null;
@@ -64,11 +84,11 @@ export function validatePaymentsForSale(totalAmount: number, payments: PaymentIn
   const normalizedPayments = payments.map(normalizePaymentInput);
 
   if (!normalizedPayments.length) {
-    return { ok: false as const, error: 'Add at least one payment line.' };
+    return { ok: false as const, error: 'Agregue al menos un medio de pago.' };
   }
 
   if (normalizedPayments.some((payment) => payment.amount <= 0)) {
-    return { ok: false as const, error: 'Each payment amount must be greater than zero.' };
+    return { ok: false as const, error: 'El monto de cada pago debe ser mayor a cero.' };
   }
 
   const seenReferenceKeys = new Set<string>();
@@ -77,7 +97,7 @@ export function validatePaymentsForSale(totalAmount: number, payments: PaymentIn
     if (requiresReferenceNumber(payment.method) && !payment.referenceNumber) {
       return {
         ok: false as const,
-        error: `${payment.method} payments require a reference number.`
+        error: `Los pagos con ${getPaymentMethodLabel(payment.method).toLowerCase()} requieren un número de referencia.`
       };
     }
 
@@ -86,7 +106,7 @@ export function validatePaymentsForSale(totalAmount: number, payments: PaymentIn
       if (seenReferenceKeys.has(referenceKey)) {
         return {
           ok: false as const,
-          error: `Duplicate ${payment.method.toLowerCase()} reference numbers are not allowed in one sale.`
+          error: `No se permiten números de referencia duplicados para ${getPaymentMethodLabel(payment.method).toLowerCase()} en una misma venta.`
         };
       }
       seenReferenceKeys.add(referenceKey);
@@ -103,21 +123,21 @@ export function validatePaymentsForSale(totalAmount: number, payments: PaymentIn
   if (summary.totalPaid < totalAmount) {
     return {
       ok: false as const,
-      error: 'Total paid must cover the sale total before checkout can finish.'
+      error: 'El total abonado debe cubrir el importe total de la venta antes de finalizar el cobro.'
     };
   }
 
   if (summary.hasCashPayment && nonCashTotal > totalAmount) {
     return {
       ok: false as const,
-      error: 'Only cash can exceed the remaining amount when change is due.'
+      error: 'Solo el efectivo puede superar el saldo pendiente cuando corresponde entregar vuelto.'
     };
   }
 
   if (!summary.hasCashPayment && summary.totalPaid !== totalAmount) {
     return {
       ok: false as const,
-      error: 'Non-cash payments must match the sale total exactly.'
+      error: 'Los pagos que no sean en efectivo deben coincidir exactamente con el total de la venta.'
     };
   }
 

@@ -2,10 +2,19 @@ import { prisma } from '@/lib/prisma';
 
 export const DEFAULT_UNITS_OF_MEASURE = [
   { code: 'PIECE', name: 'Pieza', isBase: true },
+  { code: 'KG', name: 'Kilogramo', isBase: false },
   { code: 'BOX', name: 'Caja', isBase: false },
   { code: 'CARTON', name: 'Cartón', isBase: false },
   { code: 'PACK', name: 'Paquete', isBase: false }
 ] as const;
+
+/** Unit codes that represent weight-based (pesable) products */
+export const WEIGHT_UNIT_CODES = ['KG'] as const;
+
+/** Check if a unit code represents a weighted product */
+export function isWeightUnit(code: string | null | undefined): boolean {
+  return code ? WEIGHT_UNIT_CODES.includes(code.toUpperCase() as (typeof WEIGHT_UNIT_CODES)[number]) : false;
+}
 
 export function normalizeUomCode(value: string) {
   return value.trim().toUpperCase();

@@ -48,7 +48,7 @@ export async function openCashDrawer(payload: CashDrawerKickPayload): Promise<Ca
     return {
       ok: false,
       mode: 'browser-event',
-      message: 'Cash drawer can only be triggered from a browser register session.'
+      message: 'El cajón de efectivo solo puede abrirse desde una sesión de caja en el navegador.'
     };
   }
 
@@ -59,7 +59,7 @@ export async function openCashDrawer(payload: CashDrawerKickPayload): Promise<Ca
     return {
       ok: true,
       mode: 'window-bridge',
-      message: 'Cash drawer command sent through the local register bridge.'
+      message: 'Comando de apertura de cajón enviado mediante el puente local de caja.'
     };
   }
 
@@ -84,20 +84,20 @@ export async function openCashDrawer(payload: CashDrawerKickPayload): Promise<Ca
 
       const data = await response
         .json()
-        .catch(() => ({ ok: response.ok, message: response.ok ? null : 'Bridge returned an unreadable response.' }));
+        .catch(() => ({ ok: response.ok, message: response.ok ? null : 'El puente devolvió una respuesta ilegible.' }));
 
       if (!response.ok || data?.ok === false) {
         return {
           ok: false,
           mode: 'http-bridge',
-          message: data?.message || 'Cash drawer bridge rejected the request.'
+          message: data?.message || 'El puente del cajón de efectivo rechazó la solicitud.'
         };
       }
 
       return {
         ok: true,
         mode: 'http-bridge',
-        message: data?.message || 'Cash drawer command sent to the local hardware bridge.'
+        message: data?.message || 'Comando de apertura enviado al puente de hardware local.'
       };
     } catch (error) {
       return {
@@ -105,8 +105,8 @@ export async function openCashDrawer(payload: CashDrawerKickPayload): Promise<Ca
         mode: 'http-bridge',
         message:
           error instanceof Error
-            ? `Cash drawer bridge is unreachable: ${error.message}`
-            : 'Cash drawer bridge is unreachable.'
+            ? `No se pudo conectar con el puente del cajón de efectivo: ${error.message}`
+            : 'No se pudo conectar con el puente del cajón de efectivo.'
       };
     }
   }
@@ -116,6 +116,6 @@ export async function openCashDrawer(payload: CashDrawerKickPayload): Promise<Ca
     ok: true,
     mode: 'browser-event',
     message:
-      'Fallback browser event dispatched. Add a local bridge or set NEXT_PUBLIC_CASH_DRAWER_BRIDGE_URL for live hardware.'
+      'Evento local de apertura enviado. Configure un puente local o NEXT_PUBLIC_CASH_DRAWER_BRIDGE_URL para hardware físico.'
   };
 }

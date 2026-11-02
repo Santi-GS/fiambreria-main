@@ -3,8 +3,10 @@
 import { useEffect, useRef } from 'react';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
+import { getCustomerDisplayName } from '@/lib/customers';
 import { money } from '@/lib/format';
 import {
+  getPaymentMethodLabel,
   PAYMENT_METHODS,
   type PaymentMethod,
   requiresReferenceNumber
@@ -35,6 +37,7 @@ type PaymentModalProps = {
   notes: string;
   onNotesChange: (value: string) => void;
   selectedCustomer: Customer | null;
+  onOpenCustomerSearch?: () => void;
   paymentSummary: {
     totalPaid: number;
     remainingAmount: number;
@@ -74,6 +77,7 @@ export default function PaymentModal({
   notes,
   onNotesChange,
   selectedCustomer,
+  onOpenCustomerSearch,
   paymentSummary,
   getQuickCashAmounts,
   getExactAmountForLine,
@@ -129,17 +133,32 @@ export default function PaymentModal({
               </svg>
             </div>
             <div>
-              <h3 className="text-xl font-black text-stone-900">Cobro y Facturación</h3>
-              <p className="text-xs text-stone-500">
-                Cliente: <span className="font-bold text-stone-700">{selectedCustomer?.businessName || selectedCustomer?.firstName || 'Consumidor Final'}</span>
-              </p>
+              <h3 className="text-xl font-black text-stone-900">Ventana de Cobro</h3>
+              <div className="flex flex-wrap items-center gap-2 text-xs text-stone-500">
+                <span>
+                  Cliente:{' '}
+                  <span className="font-bold text-stone-700">
+                    {selectedCustomer ? getCustomerDisplayName(selectedCustomer) : 'Consumidor Final'}
+                  </span>
+                </span>
+                {onOpenCustomerSearch ? (
+                  <button
+                    type="button"
+                    onClick={onOpenCustomerSearch}
+                    className="font-bold text-sky-700 underline underline-offset-2 hover:text-sky-900"
+                  >
+                    Cambiar cliente
+                  </button>
+                ) : null}
+              </div>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
             className="flex h-11 w-11 items-center justify-center rounded-2xl bg-stone-100 text-stone-600 transition hover:bg-stone-200 hover:text-stone-900 active:scale-95"
-            title="Cerrar [Escape]"
+            title="Cerrar [Esc]"
+            aria-label="Cerrar ventana de cobro"
           >
             ✕
           </button>
@@ -289,7 +308,7 @@ export default function PaymentModal({
                                     ? '📱 Billetera Virtual / QR'
                                     : method === 'Bank Transfer'
                                       ? '🏦 Transferencia Bancaria'
-                                      : method}
+                                      : getPaymentMethodLabel(method)}
                             </option>
                           ))}
                         </select>
@@ -417,20 +436,38 @@ export default function PaymentModal({
                 </button>
               </div>
             ) : (
-              <div className="grid gap-3 sm:grid-cols-2 rounded-2xl border border-blue-200 bg-blue-50/70 p-3 text-xs text-blue-900">
-                <div>
-                  <label className="font-semibold block mb-1">Fecha de vencimiento:</label>
-                  <Input
-                    type="date"
-                    value={creditDueDate}
-                    onChange={(e) => onCreditDueDateChange(e.target.value)}
-                    className="h-10 text-xs"
-                  />
-                </div>
-                <div className="flex items-center">
-                  <p className="text-[11px] leading-tight text-blue-800">
-                    Se creará una cuenta por cobrar asociada al cliente seleccionado para su posterior cobro en cobranzas.
-                  </p>
+              <div className="space-y-3 rounded-2xl border border-blue-200 bg-blue-50/70 p-3.5 text-xs text-blue-900">
+                {!selectedCustomer ? (
+                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-300 bg-amber-50 p-3 text-amber-950">
+                    <span className="font-bold">
+                      ⚠️ Debe seleccionar un cliente para registrar una venta en cuenta corriente.
+                    </span>
+                    {onOpenCustomerSearch ? (
+                      <button
+                        type="button"
+                        onClick={onOpenCustomerSearch}
+                        className="rounded-xl bg-amber-600 px-3 py-1.5 text-xs font-black text-white shadow-2xs transition hover:bg-amber-700 active:scale-95"
+                      >
+                        Seleccionar cliente
+                      </button>
+                    ) : null}
+                  </div>
+                ) : null}
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <label className="mb-1 block font-semibold">Fecha de vencimiento:</label>
+                    <Input
+                      type="date"
+                      value={creditDueDate}
+                      onChange={(e) => onCreditDueDateChange(e.target.value)}
+                      className="h-10 text-xs"
+                    />
+                  </div>
+                  <div className="flex items-center">
+                    <p className="text-[11px] leading-tight text-blue-800">
+                      Se registrará una deuda en cuenta corriente asociada al cliente seleccionado para su posterior gestión en cobranzas.
+                    </p>
+                  </div>
                 </div>
               </div>
             )}
@@ -440,7 +477,7 @@ export default function PaymentModal({
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
               <label className="block text-[11px] font-bold text-stone-500 uppercase mb-1">
-                Descuento Manual ($)
+                Descuento manual ({currencySymbol})
               </label>
               <Input
                 type="number"
@@ -455,7 +492,7 @@ export default function PaymentModal({
 
             <div>
               <label className="block text-[11px] font-bold text-stone-500 uppercase mb-1">
-                Notas del Comprobante
+                Notas del comprobante
               </label>
               <Input
                 placeholder="Observaciones de la venta..."
@@ -482,7 +519,7 @@ export default function PaymentModal({
             disabled={loading}
             className="h-12 min-w-[140px] rounded-2xl px-5 text-sm font-bold text-stone-700 active:scale-95"
           >
-            Cancelar [Escape]
+            Cancelar [Esc]
           </Button>
 
           <Button
@@ -492,10 +529,10 @@ export default function PaymentModal({
             className="h-12 min-w-[220px] rounded-2xl px-8 text-base font-black bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-950/20 active:scale-95 transition"
           >
             {loading
-              ? 'Procesando venta...'
+              ? 'Procesando cobro...'
               : !isOnline
-                ? 'Encolar Venta Sin Conexión'
-                : 'Confirmar y Facturar [Ctrl + Enter]'}
+                ? 'Guardar venta sin conexión'
+                : 'Confirmar cobro [Ctrl + Enter]'}
           </Button>
         </div>
       </div>

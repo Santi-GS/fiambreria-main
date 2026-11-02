@@ -7,6 +7,7 @@ type PosCartTableProps = {
   cart: CartItem[];
   currencySymbol: string;
   onUpdateQty: (productId: string, action: 'increase' | 'decrease' | 'set', value?: number) => void;
+  onEditWeightedItem: (item: CartItem) => void;
   onRemoveItem: (productId: string) => void;
   onOpenProductSearch: () => void;
 };
@@ -15,6 +16,7 @@ export default function PosCartTable({
   cart,
   currencySymbol,
   onUpdateQty,
+  onEditWeightedItem,
   onRemoveItem,
   onOpenProductSearch
 }: PosCartTableProps) {
@@ -25,15 +27,18 @@ export default function PosCartTable({
           <thead>
             <tr className="bg-[#1e3a5f] text-xs font-black uppercase tracking-wider text-white 2xl:text-sm">
               <th className="py-4 pl-6 pr-4 2xl:py-5">Descripción</th>
-              <th className="px-4 py-4 text-center 2xl:py-5">Cant</th>
-              <th className="px-4 py-4 text-right 2xl:py-5">Precio</th>
+              <th className="px-4 py-4 text-center 2xl:py-5">Cantidad</th>
+              <th className="px-4 py-4 text-right 2xl:py-5">Precio unit.</th>
               <th className="py-4 pl-4 pr-6 text-right 2xl:py-5">Importe</th>
-              <th className="w-14 py-4 pr-4 text-center 2xl:py-5"></th>
+              <th className="w-14 py-4 pr-4 text-center 2xl:py-5">
+                <span className="sr-only">Quitar</span>
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-stone-100 text-sm 2xl:text-base">
             {cart.length > 0 ? (
               cart.map((item, index) => {
+                const isWeighted = item.baseUnitCode === 'KG';
                 const lineTotal = Number(item.price) * item.qty;
                 const isEven = index % 2 === 0;
 
@@ -51,49 +56,88 @@ export default function PosCartTable({
                         {item.variantLabel ? (
                           <span className="font-bold text-sky-700">{item.variantLabel}</span>
                         ) : null}
-                        {item.barcode ? <span>Cód: {item.barcode}</span> : null}
-                        {item.sku ? <span>SKU: {item.sku}</span> : null}
+                        {isWeighted ? (
+                          <span className="rounded-md bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800">
+                            Pesable (x Kg)
+                          </span>
+                        ) : null}
+                        {item.barcode ? <span>Código: {item.barcode}</span> : null}
+                        {item.sku ? <span>Cód. int.: {item.sku}</span> : null}
                       </div>
                     </td>
 
-                    {/* Quantity with fast touch-friendly controls */}
+                    {/* Quantity */}
                     <td className="px-4 py-4 text-center 2xl:py-5">
-                      <div className="inline-flex items-center gap-1.5 rounded-2xl border border-stone-200 bg-white p-1 shadow-2xs">
+                      {isWeighted ? (
+                        /* Weighted items: clickable button with pencil icon to reopen WeighProductModal */
                         <button
                           type="button"
-                          onClick={() => onUpdateQty(item.id, 'decrease')}
-                          className="flex h-11 w-11 items-center justify-center rounded-xl bg-stone-100 text-base font-black text-stone-800 transition hover:bg-stone-200 active:scale-95"
-                          title="Disminuir"
+                          onClick={() => onEditWeightedItem(item)}
+                          title="Haga clic para editar el peso"
+                          aria-label={`Editar peso de ${item.name} (${item.qty.toFixed(3)} Kg)`}
+                          className="group inline-flex min-h-[44px] cursor-pointer items-center gap-2 rounded-2xl border-2 border-amber-300 bg-amber-50 px-3.5 py-2 shadow-2xs transition hover:border-amber-500 hover:bg-amber-100/80 active:scale-95"
                         >
-                          -
+                          <span className="text-base font-black tabular-nums text-stone-900 2xl:text-lg">
+                            {item.qty.toFixed(3).replace('.', ',')}
+                          </span>
+                          <span className="text-xs font-bold text-amber-800">Kg</span>
+                          <span className="ml-0.5 flex h-6 w-6 items-center justify-center rounded-lg bg-amber-200/70 text-amber-900 transition group-hover:bg-amber-500 group-hover:text-white">
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              className="h-3.5 w-3.5"
+                              viewBox="0 0 20 20"
+                              fill="currentColor"
+                              aria-hidden="true"
+                            >
+                              <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                            </svg>
+                          </span>
                         </button>
-                        <input
-                          type="number"
-                          step="any"
-                          min="0.001"
-                          value={item.qty}
-                          onChange={(e) => {
-                            const val = parseFloat(e.target.value);
-                            if (!isNaN(val) && val > 0) {
-                              onUpdateQty(item.id, 'set', val);
-                            }
-                          }}
-                          className="w-16 text-center text-base font-black text-stone-900 focus:outline-none tabular-nums sm:w-20 2xl:text-lg"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => onUpdateQty(item.id, 'increase')}
-                          className="flex h-11 w-11 items-center justify-center rounded-xl bg-stone-100 text-base font-black text-stone-800 transition hover:bg-stone-200 active:scale-95"
-                          title="Aumentar"
-                        >
-                          +
-                        </button>
-                      </div>
+                      ) : (
+                        /* Unit items: standard +/- controls */
+                        <div className="inline-flex items-center gap-1.5 rounded-2xl border border-stone-200 bg-white p-1 shadow-2xs">
+                          <button
+                            type="button"
+                            onClick={() => onUpdateQty(item.id, 'decrease')}
+                            className="flex h-11 w-11 items-center justify-center rounded-xl bg-stone-100 text-base font-black text-stone-800 transition hover:bg-stone-200 active:scale-95"
+                            title="Disminuir cantidad"
+                            aria-label={`Disminuir cantidad de ${item.name}`}
+                          >
+                            -
+                          </button>
+                          <input
+                            type="number"
+                            step="1"
+                            min="1"
+                            value={item.qty}
+                            onChange={(e) => {
+                              const val = parseInt(e.target.value, 10);
+                              if (!isNaN(val) && val > 0) {
+                                onUpdateQty(item.id, 'set', val);
+                              }
+                            }}
+                            aria-label={`Cantidad de ${item.name}`}
+                            className="w-16 text-center text-base font-black text-stone-900 focus:outline-none tabular-nums sm:w-20 2xl:text-lg"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => onUpdateQty(item.id, 'increase')}
+                            className="flex h-11 w-11 items-center justify-center rounded-xl bg-stone-100 text-base font-black text-stone-800 transition hover:bg-stone-200 active:scale-95"
+                            title="Aumentar cantidad"
+                            aria-label={`Aumentar cantidad de ${item.name}`}
+                          >
+                            +
+                          </button>
+                        </div>
+                      )}
                     </td>
 
                     {/* Unit Price */}
                     <td className="px-4 py-4 text-right font-bold text-stone-700 tabular-nums 2xl:py-5 2xl:text-base">
                       {money(item.price, currencySymbol)}
+                      {isWeighted ? (
+                        <span className="ml-0.5 text-[10px] font-semibold text-stone-400">/Kg</span>
+                      ) : null}
                     </td>
 
                     {/* Line Total */}
@@ -107,7 +151,8 @@ export default function PosCartTable({
                         type="button"
                         onClick={() => onRemoveItem(item.id)}
                         className="flex h-11 w-11 items-center justify-center rounded-2xl border border-transparent text-stone-400 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 active:scale-95"
-                        title="Quitar artículo"
+                        title="Quitar artículo del carrito"
+                        aria-label={`Quitar ${item.name} del carrito`}
                       >
                         <svg
                           xmlns="http://www.w3.org/2000/svg"
@@ -146,15 +191,15 @@ export default function PosCartTable({
                     </div>
                     <div className="text-base font-bold text-stone-800">El carrito está vacío</div>
                     <p className="text-xs text-stone-500">
-                      Escanee un código de barras con el lector láser o presione{' '}
+                      Escanee un código de barras con el lector o presione{' '}
                       <button
                         type="button"
                         onClick={onOpenProductSearch}
                         className="font-bold text-sky-700 underline underline-offset-2 hover:text-sky-800"
                       >
-                        Buscar producto [Ctrl+B / /]
+                        Buscar producto [Ctrl+B]
                       </button>{' '}
-                      para seleccionar del catálogo.
+                      para elegir del catálogo.
                     </p>
                   </div>
                 </td>

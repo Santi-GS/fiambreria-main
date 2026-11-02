@@ -261,7 +261,7 @@ export const supplierReturnCreditSchema = z.object({
 
 export const salePaymentSchema = z.object({
   method: z.enum(PAYMENT_METHODS),
-  amount: z.coerce.number().positive('Payment amount must be greater than zero.').max(999999.99),
+  amount: z.coerce.number().positive('El monto del pago debe ser mayor a cero.').max(999999.99),
   referenceNumber: z.string().trim().max(80).optional().nullable()
 });
 
@@ -281,15 +281,15 @@ export const saleSchema = z.object({
     productId: z.string().trim().min(1),
     variantId: z.string().trim().min(1).optional().nullable(),
     priceSnapshot: z.coerce.number().min(0).optional().nullable(),
-    qty: z.coerce.number().int().positive()
-  })).min(1)
+    qty: z.coerce.number().positive('La cantidad debe ser mayor a cero.')
+  })).min(1, 'Agregue al menos un producto a la venta.')
 }).superRefine((input, ctx) => {
   if (input.isCreditSale) {
     if (!input.customerId?.trim()) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['customerId'],
-        message: 'Credit sales require an attached customer.'
+        message: 'Las ventas a crédito requieren seleccionar un cliente.'
       });
     }
 
@@ -297,7 +297,7 @@ export const saleSchema = z.object({
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['creditDueDate'],
-        message: 'Credit sales require a due date.'
+        message: 'Las ventas a crédito requieren una fecha de vencimiento.'
       });
     }
 
@@ -305,7 +305,7 @@ export const saleSchema = z.object({
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['payments'],
-        message: 'Credit sales should not include checkout payment lines.'
+        message: 'Las ventas a crédito no deben incluir líneas de pago inmediato.'
       });
     }
   }
@@ -355,8 +355,9 @@ export const parkedSaleCreateSchema = z.object({
   items: z.array(z.object({
     productId: z.string().trim().min(1),
     variantId: z.string().trim().min(1).optional().nullable(),
-    qty: z.coerce.number().int().positive()
-  })).min(1, 'Add at least one item before holding the cart.')
+    productVariantId: z.string().trim().min(1).optional().nullable(),
+    qty: z.coerce.number().positive('La cantidad debe ser mayor a cero.')
+  })).min(1, 'Agregue al menos un artículo antes de poner el carrito en espera.')
 });
 
 export const receivablePaymentSchema = z.object({

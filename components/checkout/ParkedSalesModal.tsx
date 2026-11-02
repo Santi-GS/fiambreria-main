@@ -71,7 +71,8 @@ export default function ParkedSalesModal({
             type="button"
             onClick={onClose}
             className="flex h-11 w-11 items-center justify-center rounded-2xl bg-stone-100 text-stone-600 transition hover:bg-stone-200 hover:text-stone-900 active:scale-95"
-            title="Cerrar [Escape]"
+            title="Cerrar [Esc]"
+            aria-label="Cerrar ventas en espera"
           >
             ✕
           </button>
@@ -173,7 +174,7 @@ export default function ParkedSalesModal({
         {/* Footer */}
         <div className="flex justify-end border-t border-stone-100 bg-stone-50/50 p-4">
           <Button type="button" variant="secondary" onClick={onClose}>
-            Cerrar [Escape]
+            Cerrar [Esc]
           </Button>
         </div>
       </div>

@@ -91,7 +91,7 @@ export async function GET() {
       }))
     });
   } catch (error) {
-    return apiErrorResponse(error, 'Unable to load sales.');
+    return apiErrorResponse(error, 'No se pudieron cargar las ventas.');
   }
 }
 
@@ -103,7 +103,7 @@ export async function POST(request: Request) {
 
     if (!parsed.success) {
       return NextResponse.json(
-        { error: parsed.error.issues[0]?.message ?? 'Invalid sale payload.' },
+        { error: parsed.error.issues[0]?.message ?? 'Los datos de la venta no son válidos.' },
         { status: 400 }
       );
     }
@@ -111,7 +111,7 @@ export async function POST(request: Request) {
     const occurredAt = parseOptionalDateInput(parsed.data.occurredAt) ?? new Date();
     if (parsed.data.occurredAt && !parseOptionalDateInput(parsed.data.occurredAt)) {
       return NextResponse.json(
-        { error: 'Enter a valid sale timestamp.' },
+        { error: 'Ingrese una fecha y hora de venta válida.' },
         { status: 400 }
       );
     }
@@ -124,7 +124,10 @@ export async function POST(request: Request) {
           clientRequestId
         },
         include: {
-          items: true
+          items: true,
+          payments: {
+            orderBy: { createdAt: 'asc' }
+          }
         }
       });
 
@@ -136,6 +139,11 @@ export async function POST(request: Request) {
               ...item,
               unitPrice: item.unitPrice.toString(),
               lineTotal: item.lineTotal.toString()
+            })),
+            payments: existingSale.payments.map((payment) => ({
+              ...payment,
+              amount: payment.amount.toString(),
+              createdAt: payment.createdAt.toISOString()
             }))
           },
           alreadySynced: true
@@ -153,7 +161,7 @@ export async function POST(request: Request) {
 
     if (isCreditSale && !creditDueDate) {
       return NextResponse.json(
-        { error: 'Enter a valid credit due date.' },
+        { error: 'Ingrese una fecha de vencimiento válida para la venta a crédito.' },
         { status: 400 }
       );
     }
@@ -172,7 +180,7 @@ export async function POST(request: Request) {
 
         if (!referencedSession) {
           return NextResponse.json(
-            { error: 'The referenced cash session was not found for this cashier.' },
+            { error: 'No se encontró la sesión de caja indicada para este cajero.' },
             { status: 409 }
           );
         }
@@ -180,7 +188,7 @@ export async function POST(request: Request) {
         const closesAt = referencedSession.closedAt ?? occurredAt;
         if (occurredAt < referencedSession.openedAt || occurredAt > closesAt) {
           return NextResponse.json(
-            { error: 'The sale timestamp falls outside the referenced cash session.' },
+            { error: 'La fecha de la venta está fuera del horario de la sesión de caja.' },
             { status: 409 }
           );
         }
@@ -188,7 +196,7 @@ export async function POST(request: Request) {
         const activeCashSession = await getActiveCashSession(prisma, shopId, userId);
         if (!activeCashSession) {
           return NextResponse.json(
-            { error: 'Open a register session before accepting cash sales.' },
+            { error: 'Debe abrir una sesión de caja antes de cobrar ventas en efectivo.' },
             { status: 409 }
           );
         }
@@ -204,7 +212,8 @@ export async function POST(request: Request) {
           id: { in: items.map((item) => item.productId) }
         },
         include: {
-          variants: true
+          variants: true,
+          baseUnitOfMeasure: true
         }
       }),
       parsed.data.customerId
@@ -220,7 +229,7 @@ export async function POST(request: Request) {
 
     if (parsed.data.customerId && !customer) {
       return NextResponse.json(
-        { error: 'Selected customer was not found or is archived.' },
+        { error: 'El cliente seleccionado no fue encontrado o está archivado.' },
         { status: 404 }
       );
     }
@@ -237,10 +246,10 @@ export async function POST(request: Request) {
           type: 'PRODUCT_UNAVAILABLE',
           productId: item.productId,
           variantId: item.variantId ?? null,
-          productName: product?.name ?? 'Archived product',
+          productName: product?.name ?? 'Producto archivado',
           message: product
-            ? `${product.name} is archived and cannot be sold.`
-            : 'One queued item no longer exists in the branch catalog.'
+            ? `${product.name} está archivado y no puede venderse.`
+            : 'Uno de los productos ya no existe en el catálogo de la sucursal.'
         });
         continue;
       }
@@ -255,7 +264,7 @@ export async function POST(request: Request) {
           productId: item.productId,
           variantId: item.variantId,
           productName: product.name,
-          message: `A selected variant for ${product.name} is no longer available.`
+          message: `La variante seleccionada de ${product.name} ya no está disponible.`
         });
         continue;
       }
@@ -271,7 +280,7 @@ export async function POST(request: Request) {
             productName: product.name,
             queuedPrice,
             currentPrice: roundCurrency(currentUnitPrice),
-            message: `${product.name} changed price while this sale was queued offline.`
+            message: `${product.name} cambió de precio mientras la venta estaba en cola sin conexión.`
           });
         }
       }
@@ -283,22 +292,25 @@ export async function POST(request: Request) {
       const product = productMap.get(productId);
       if (!product) continue;
 
-      if (product.stockQty < qty) {
+      const isKg = product.baseUnitOfMeasure?.code === 'KG';
+      const requiredStockInDbUnits = isKg ? Math.round(qty * 1000) : Math.round(qty);
+
+      if (product.stockQty < requiredStockInDbUnits) {
         conflicts.push({
           type: 'INSUFFICIENT_STOCK',
           productId,
           variantId: null,
           productName: product.name,
           requestedQty: qty,
-          availableQty: product.stockQty,
-          message: `${product.name} has only ${product.stockQty} item(s) available.`
+          availableQty: isKg ? product.stockQty / 1000 : product.stockQty,
+          message: `${product.name} solo tiene ${isKg ? `${(product.stockQty / 1000).toFixed(3)} Kg` : `${product.stockQty} unidad(es)`} disponible(s).`
         });
       }
     }
 
     if (conflicts.length) {
       return conflictResponse(
-        'One or more queued sale lines need cashier review before sync can continue.',
+        conflicts.map((conflict) => conflict.message).join(' '),
         conflicts
       );
     }
@@ -331,7 +343,7 @@ export async function POST(request: Request) {
 
     if (discountAmount > subtotal + taxBreakdown.taxAmount) {
       return NextResponse.json(
-        { error: 'Discount cannot exceed the sale total.' },
+        { error: 'El descuento no puede superar el total de la venta.' },
         { status: 400 }
       );
     }
@@ -394,19 +406,22 @@ export async function POST(request: Request) {
           paymentMethod: paymentMethodSummary,
           isCreditSale,
           notes: normalizeText(parsed.data.notes),
-          cashierName: session.user.name || session.user.email || 'Cashier',
+          cashierName: session.user.name || session.user.email || 'Cajero',
           items: {
-            create: saleLines.map((line) => ({
-              productId: line.productId,
-              productVariantId: line.variant?.id ?? null,
-              productName: line.product.name,
-              variantLabel: line.variant ? buildVariantLabel(line.variant) || null : null,
-              variantSkuSnapshot: line.variant?.sku ?? null,
-              variantBarcodeSnapshot: line.variant?.barcode ?? null,
-              qty: line.qty,
-              unitPrice: line.unitPrice,
-              lineTotal: line.lineTotal
-            }))
+            create: saleLines.map((line) => {
+              const isKg = line.product.baseUnitOfMeasure?.code === 'KG' || !Number.isInteger(line.qty);
+              return {
+                productId: line.productId,
+                productVariantId: line.variant?.id ?? null,
+                productName: isKg ? `${line.product.name} (${line.qty.toFixed(3)} Kg)` : line.product.name,
+                variantLabel: line.variant ? buildVariantLabel(line.variant) || null : (isKg ? `${line.qty.toFixed(3)} Kg` : null),
+                variantSkuSnapshot: line.variant?.sku ?? null,
+                variantBarcodeSnapshot: line.variant?.barcode ?? null,
+                qty: isKg ? 1 : line.qty,
+                unitPrice: isKg ? line.lineTotal : line.unitPrice,
+                lineTotal: line.lineTotal
+              };
+            })
           },
           payments: paymentValidation.payments.length
             ? {
@@ -419,7 +434,12 @@ export async function POST(request: Request) {
               }
             : undefined
         },
-        include: { items: true }
+        include: {
+          items: true,
+          payments: {
+            orderBy: { createdAt: 'asc' }
+          }
+        }
       });
 
       if (customer) {
@@ -441,11 +461,13 @@ export async function POST(request: Request) {
 
       for (const [productId, qty] of productQtyTotals) {
         const product = productMap.get(productId)!;
+        const isKg = product.baseUnitOfMeasure?.code === 'KG';
+        const decrementQty = isKg ? Math.round(qty * 1000) : Math.max(1, Math.round(qty));
         await tx.product.update({
           where: { id: product.id },
           data: {
             stockQty: {
-              decrement: qty
+              decrement: decrementQty
             }
           }
         });
@@ -455,10 +477,10 @@ export async function POST(request: Request) {
             shopId,
             productId: product.id,
             type: 'SALE_COMPLETED',
-            qtyChange: qty * -1,
+            qtyChange: -decrementQty,
             referenceId: saleRecord.id,
             userId,
-            notes: `Sale ${saleRecord.saleNumber}`,
+            notes: isKg ? `Sale ${saleRecord.saleNumber} (${qty.toFixed(3)} Kg)` : `Sale ${saleRecord.saleNumber}`,
             createdAt: occurredAt
           }
         });
@@ -502,12 +524,17 @@ export async function POST(request: Request) {
             ...item,
             unitPrice: item.unitPrice.toString(),
             lineTotal: item.lineTotal.toString()
+          })),
+          payments: sale.payments.map((payment) => ({
+            ...payment,
+            amount: payment.amount.toString(),
+            createdAt: payment.createdAt.toISOString()
           }))
         }
       },
       { status: 201 }
     );
   } catch (error) {
-    return apiErrorResponse(error, 'Unable to complete sale.');
+    return apiErrorResponse(error, 'No fue posible completar la venta.');
   }
 }
