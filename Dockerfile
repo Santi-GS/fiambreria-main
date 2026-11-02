@@ -15,12 +15,11 @@ FROM base AS builder
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Generate Prisma Client
-RUN npx prisma generate
-
-# Build Next.js application
+# Generate Prisma Client and build Next.js application
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
+ENV DATABASE_URL="postgresql://postgres:postgres@localhost:5432/vertex_pos?schema=public"
+ENV AUTH_SECRET="build-time-only-placeholder-secret-000000"
 RUN npm run build
 
 # Stage 4: Production Runner
@@ -37,16 +36,17 @@ RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 -h /home/nextjs -G nodejs nextjs
 
 # Copy runtime assets and built application
-COPY --from=builder /app/package.json ./package.json
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/public ./public
-COPY --from=builder /app/.next ./.next
-COPY --from=builder /app/prisma ./prisma
-COPY --from=builder /app/worker ./worker
-COPY --from=builder /app/tsconfig.json ./tsconfig.json
+COPY --from=builder --chown=nextjs:nodejs /app/package.json ./package.json
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules ./node_modules
+COPY --from=builder --chown=nextjs:nodejs /app/public ./public
+COPY --from=builder --chown=nextjs:nodejs /app/.next ./.next
+COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
+COPY --from=builder --chown=nextjs:nodejs /app/lib ./lib
+COPY --from=builder --chown=nextjs:nodejs /app/worker ./worker
+COPY --from=builder --chown=nextjs:nodejs /app/tsconfig.json ./tsconfig.json
 
-# Ensure correct ownership
-RUN chown -R nextjs:nodejs /app
+# Ensure uploads directory exists with correct ownership
+RUN mkdir -p /app/public/uploads/products && chown -R nextjs:nodejs /app/public/uploads
 
 USER nextjs
 

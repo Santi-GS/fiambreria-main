@@ -22,3 +22,7 @@ AGENTS.md
 .vscode
 .idea
 *.md
+*.tsbuildinfo
+coverage
+public/uploads/products/*
+!public/uploads/products/.gitkeep

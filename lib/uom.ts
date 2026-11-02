@@ -1,4 +1,4 @@
-import { prisma } from '@/lib/prisma';
+import { prisma } from './prisma';
 
 export const DEFAULT_UNITS_OF_MEASURE = [
   { code: 'PIECE', name: 'Pieza', isBase: true },
