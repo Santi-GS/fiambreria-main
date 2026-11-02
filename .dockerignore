@@ -24,5 +24,6 @@ AGENTS.md
 *.md
 *.tsbuildinfo
 coverage
+backups
 public/uploads/products/*
 !public/uploads/products/.gitkeep

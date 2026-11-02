@@ -65,15 +65,19 @@ export async function POST(request: Request) {
       );
     }
 
+    const hasExplicitCategories = Array.isArray(body?.categories);
+    const hasExplicitSuppliers = Array.isArray(body?.suppliers);
+    const hasExplicitProducts = Array.isArray(body?.products);
+
     const slug = await uniqueSlug(parsed.data.shopName);
     const shopTypeDefaults = getShopTypeDefaults(parsed.data.posType);
     const categories = uniqueByName(
-      (parsed.data.categories.length
+      hasExplicitCategories
         ? parsed.data.categories.map((category) => ({ name: category.name.trim() }))
-        : shopTypeDefaults.starterCategories.map((name) => ({ name })))
+        : shopTypeDefaults.starterCategories.map((name) => ({ name }))
     );
     const suppliers = uniqueByName(
-      (parsed.data.suppliers.length
+      (hasExplicitSuppliers
         ? parsed.data.suppliers
         : shopTypeDefaults.starterSuppliers).map((supplier) => ({
           ...supplier,
@@ -81,7 +85,7 @@ export async function POST(request: Request) {
         }))
     );
     const products = uniqueByName(
-      (parsed.data.products.length
+      (hasExplicitProducts
         ? parsed.data.products
         : shopTypeDefaults.starterProducts).map((product) => ({
           ...product,

@@ -20,10 +20,7 @@ export default async function HomePage() {
             Sistema punto de venta ayuda a propietarios, gerentes y cajeros a gestionar la configuración inicial, productos, proveedores, compras, cobros, recibos, movimientos de inventario, ajustes y reportes en un solo espacio de trabajo.
           </p>
           <div className="mt-8 flex flex-wrap gap-4">
-            <Link href="/signup" className="rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700">
-              Crear cuenta
-            </Link>
-            <Link href="/login" className="rounded-2xl border border-stone-300 bg-white px-5 py-3 text-sm font-semibold text-stone-900 shadow-sm transition hover:bg-stone-50">
+            <Link href="/login" className="rounded-2xl bg-emerald-600 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700">
               Iniciar sesión
             </Link>
           </div>

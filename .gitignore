@@ -7,5 +7,6 @@ dist
 prisma/dev.db
 *.log
 *.tsbuildinfo
+backups/
 public/uploads/products/*
 !public/uploads/products/.gitkeep

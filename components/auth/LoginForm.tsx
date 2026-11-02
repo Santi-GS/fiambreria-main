@@ -114,7 +114,9 @@ export default function LoginForm({
             {error ? <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div> : null}
             <Button type="submit" className="w-full" disabled={loading}>{loading ? 'Iniciando sesión...' : 'Iniciar sesión'}</Button>
           </form>
-          <p className="mt-6 text-center text-sm text-stone-600">¿No tienes una cuenta? <button type="button" onClick={() => router.push('/signup')} className="font-semibold text-emerald-600 hover:text-emerald-700">Crear una</button></p>
+          <p className="mt-6 text-center text-xs text-stone-500">
+            Acceso exclusivo para personal autorizado. Solicita tu cuenta al administrador.
+          </p>
         </div>
       </div>
     </main>

@@ -4,6 +4,11 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { money } from '@/lib/format';
 import { evaluateWeightAgainstStock } from '@/lib/pos-stock';
+import type { SystelScaleReading } from '@/lib/scale/systel-protocol';
+import {
+  SystelScaleSession,
+  type ScaleConnectionStatus
+} from '@/lib/scale/web-scale-connection';
 import type { Product } from './types';
 
 type WeighUnit = 'kg' | 'g';
@@ -63,7 +68,79 @@ function WeighDialog({
   const [weightInput, setWeightInput] = useState(() =>
     initialGrams > 0 ? String(initialGrams) : ''
   );
+  const [scaleStatus, setScaleStatus] = useState<ScaleConnectionStatus>('disconnected');
+  const [scaleError, setScaleError] = useState('');
+  const [lastScaleReading, setLastScaleReading] = useState<SystelScaleReading | null>(null);
+  const [isWeightLocked, setIsWeightLocked] = useState<boolean>(() => mode === 'edit');
+
   const inputRef = useRef<HTMLInputElement>(null);
+  const scaleSessionRef = useRef<SystelScaleSession | null>(null);
+  const weighUnitRef = useRef<WeighUnit>(weighUnit);
+  const isWeightLockedRef = useRef<boolean>(isWeightLocked);
+  const hasScalePopulatedInputRef = useRef<boolean>(false);
+
+  useEffect(() => {
+    weighUnitRef.current = weighUnit;
+  }, [weighUnit]);
+
+  useEffect(() => {
+    isWeightLockedRef.current = isWeightLocked;
+  }, [isWeightLocked]);
+
+  function formatGramsForActiveUnit(grams: number, unit: WeighUnit) {
+    if (grams <= 0) return '';
+    return unit === 'g' ? String(grams) : (grams / 1000).toFixed(3);
+  }
+
+  // Auto-conectar a la balanza Systel Croma previamente autorizada en esta tablet/PC
+  useEffect(() => {
+    const session = new SystelScaleSession({
+      onStatusChange: (nextStatus, message) => {
+        setScaleStatus(nextStatus);
+        setScaleError(message ?? '');
+      },
+      onReading: (reading) => {
+        setLastScaleReading(reading);
+        if (isWeightLockedRef.current) return;
+
+        if (reading.weightGrams > 0) {
+          hasScalePopulatedInputRef.current = true;
+          setWeightInput(formatGramsForActiveUnit(reading.weightGrams, weighUnitRef.current));
+        } else if (hasScalePopulatedInputRef.current) {
+          setWeightInput('');
+        }
+      }
+    });
+
+    scaleSessionRef.current = session;
+    void session.tryAutoConnect();
+
+    return () => {
+      scaleSessionRef.current = null;
+      void session.disconnect();
+    };
+  }, []);
+
+  async function handleConnectScaleClick() {
+    setScaleError('');
+    setIsWeightLocked(false);
+    isWeightLockedRef.current = false;
+    await scaleSessionRef.current?.requestAndConnect();
+  }
+
+  function toggleScaleLock() {
+    if (isWeightLocked) {
+      setIsWeightLocked(false);
+      isWeightLockedRef.current = false;
+      if (lastScaleReading && lastScaleReading.weightGrams > 0) {
+        hasScalePopulatedInputRef.current = true;
+        setWeightInput(formatGramsForActiveUnit(lastScaleReading.weightGrams, weighUnit));
+      }
+    } else {
+      setIsWeightLocked(true);
+      isWeightLockedRef.current = true;
+    }
+  }
 
   // Focus (and select when editing) input on mount
   useEffect(() => {
@@ -116,6 +193,10 @@ function WeighDialog({
   }
 
   function applyQuickWeight(grams: number) {
+    if (scaleStatus === 'connected') {
+      setIsWeightLocked(true);
+      isWeightLockedRef.current = true;
+    }
     if (weighUnit === 'g') {
       setWeightInput(String(grams));
     } else {
@@ -126,6 +207,10 @@ function WeighDialog({
 
   function applyMaxAvailableWeight() {
     if (safeAvailableGrams <= 0) return;
+    if (scaleStatus === 'connected') {
+      setIsWeightLocked(true);
+      isWeightLockedRef.current = true;
+    }
     if (weighUnit === 'g') {
       setWeightInput(String(safeAvailableGrams));
     } else {
@@ -215,16 +300,89 @@ function WeighDialog({
           {/* Weighing Card */}
           <div className="p-4 sm:p-5">
             <div className="rounded-2xl border border-stone-200 bg-stone-50/60 p-4">
-              {/* Header: Pesaje + active scale badge */}
-              <div className="flex items-center justify-between gap-2">
+              {/* Header: Pesaje + Systel Croma live scale controls */}
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="text-xs font-black uppercase tracking-wider text-stone-600">
                   {mode === 'edit' ? 'Nuevo peso a vender' : 'Pesaje'}
                 </span>
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-800">
-                  <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                  Balanza activa
-                </span>
+
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {scaleStatus === 'connected' ? (
+                    <>
+                      <span
+                        className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
+                          isWeightLocked
+                            ? 'bg-sky-100 text-sky-900'
+                            : lastScaleReading?.stable
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : 'bg-amber-100 text-amber-900'
+                        }`}
+                      >
+                        <span
+                          className={`h-2 w-2 rounded-full ${
+                            isWeightLocked
+                              ? 'bg-sky-600'
+                              : lastScaleReading?.stable
+                                ? 'bg-emerald-500 animate-pulse'
+                                : 'bg-amber-500 animate-pulse'
+                          }`}
+                        />
+                        {isWeightLocked
+                          ? 'Peso fijado / Manual'
+                          : lastScaleReading
+                            ? lastScaleReading.stable
+                              ? 'Systel en vivo • Estable'
+                              : 'Systel • Estabilizando...'
+                            : 'Systel conectada'}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={toggleScaleLock}
+                        disabled={isOutOfStock}
+                        className="rounded-full border border-stone-300 bg-white px-2.5 py-0.5 text-[11px] font-bold text-stone-700 shadow-2xs transition hover:border-[#1e3a5f] hover:text-[#1e3a5f] active:scale-95 disabled:opacity-40"
+                      >
+                        {isWeightLocked ? 'Leer en vivo' : 'Fijar peso'}
+                      </button>
+                    </>
+                  ) : scaleStatus === 'connecting' ? (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-sky-100 px-2.5 py-0.5 text-[11px] font-semibold text-sky-800">
+                      <span className="h-2 w-2 rounded-full bg-sky-500 animate-ping" />
+                      Conectando balanza...
+                    </span>
+                  ) : scaleStatus === 'disconnected' || scaleStatus === 'error' ? (
+                    <>
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-stone-200/80 px-2.5 py-0.5 text-[11px] font-semibold text-stone-600">
+                        Modo manual
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => void handleConnectScaleClick()}
+                        className="rounded-full border border-emerald-600/30 bg-emerald-50 px-2.5 py-0.5 text-[11px] font-bold text-emerald-800 transition hover:bg-emerald-100 active:scale-95"
+                        title="Vincular cable RS-232 a USB de balanza Systel Croma"
+                      >
+                        Conectar Systel USB
+                      </button>
+                    </>
+                  ) : scaleStatus === 'insecure-context' ? (
+                    <span
+                      className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-semibold text-amber-900"
+                      title="Para lectura USB directa ingresa por HTTPS (Cloudflare Tunnel) o habilita el origen local en Chrome."
+                    >
+                      Manual (USB requiere HTTPS)
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-stone-200/80 px-2.5 py-0.5 text-[11px] font-semibold text-stone-600">
+                      Ingreso manual
+                    </span>
+                  )}
+                </div>
               </div>
+
+              {scaleError ? (
+                <div className="mt-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[11px] font-medium text-amber-900">
+                  {scaleError}
+                </div>
+              ) : null}
 
               {safeReservedGrams > 0 ? (
                 <div className="mt-1.5 text-[11px] font-semibold text-amber-800">
@@ -283,7 +441,13 @@ function WeighDialog({
                   min="0"
                   disabled={isOutOfStock}
                   value={weightInput}
-                  onChange={(e) => setWeightInput(e.target.value)}
+                  onChange={(e) => {
+                    if (scaleStatus === 'connected' && !isWeightLocked) {
+                      setIsWeightLocked(true);
+                      isWeightLockedRef.current = true;
+                    }
+                    setWeightInput(e.target.value);
+                  }}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && isValidWeight) {
                       e.preventDefault();

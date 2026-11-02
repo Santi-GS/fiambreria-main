@@ -7,7 +7,6 @@ import Input from '@/components/ui/Input';
 import { PAYMENT_METHODS, type PaymentMethod } from '@/lib/payments';
 import {
   DEFAULT_PAYMENT_METHODS,
-  DEFAULT_TIMEZONE,
   getPrinterConnectionLabel,
   getTaxModeLabel,
   PRINTER_CONNECTION_OPTIONS,
@@ -43,17 +42,17 @@ export default function OnboardPage() {
   const [form, setForm] = useState({
     shopName: '',
     legalBusinessName: '',
-    posType: 'GENERAL_RETAIL' as SupportedShopType,
+    posType: 'FOOD_BEVERAGE' as SupportedShopType,
     phone: '',
     email: '',
     address: '',
     taxId: '',
-    timezone: DEFAULT_TIMEZONE,
-    currencyCode: 'PHP',
-    currencySymbol: '₱',
-    taxMode: 'EXCLUSIVE' as TaxModeValue,
-    taxRate: '12',
-    lowStockThreshold: String(getShopTypeDefaults('GENERAL_RETAIL').lowStockThreshold),
+    timezone: 'America/Argentina/Buenos_Aires',
+    currencyCode: 'ARS',
+    currencySymbol: '$',
+    taxMode: 'INCLUSIVE' as TaxModeValue,
+    taxRate: '21',
+    lowStockThreshold: String(getShopTypeDefaults('FOOD_BEVERAGE').lowStockThreshold),
     receiptWidth: '80mm' as '58mm' | '80mm',
     receiptHeader: '¡Gracias por tu compra!',
     receiptFooter: 'Vuelve pronto.',
@@ -64,9 +63,9 @@ export default function OnboardPage() {
     printerConnection: 'MANUAL' as PrinterConnectionValue,
     barcodeScannerNotes: 'Escanea el código de barras o SKU y pulsa Enter para añadir rápidamente el artículo.'
   });
-  const [categories, setCategories] = useState(() => createCategoryRows('GENERAL_RETAIL'));
-  const [suppliers, setSuppliers] = useState(() => createSupplierRows('GENERAL_RETAIL'));
-  const [products, setProducts] = useState(() => createProductRows('GENERAL_RETAIL'));
+  const [categories, setCategories] = useState<{ name: string }[]>([]);
+  const [suppliers, setSuppliers] = useState<{ name: string; contactName: string; phone: string }[]>([]);
+  const [products, setProducts] = useState<ReturnType<typeof createProductRows>>([]);
 
   const selectedShopType = useMemo(() => getShopTypeDefaults(form.posType), [form.posType]);
   function applyShopType(shopType: SupportedShopType) {
@@ -76,9 +75,6 @@ export default function OnboardPage() {
       posType: shopType,
       lowStockThreshold: String(defaults.lowStockThreshold)
     }));
-    setCategories(createCategoryRows(shopType));
-    setSuppliers(createSupplierRows(shopType));
-    setProducts(createProductRows(shopType));
   }
 
   function togglePaymentMethod(method: PaymentMethod) {
@@ -379,7 +375,22 @@ export default function OnboardPage() {
           {step === 3 ? (
             <div className="space-y-6">
               <div>
-                <div className="mb-3 text-lg font-black text-stone-900">Categorías iniciales</div>
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <div className="text-lg font-black text-stone-900">Categorías iniciales (opcional)</div>
+                    <p className="text-xs text-stone-500">Puedes empezar con el catálogo vacío y crear tus categorías luego desde el panel.</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="button" variant="secondary" onClick={() => setCategories(createCategoryRows(form.posType))}>
+                      Cargar sugeridas
+                    </Button>
+                    {categories.length > 0 ? (
+                      <Button type="button" variant="secondary" onClick={() => setCategories([])}>
+                        Vaciar lista
+                      </Button>
+                    ) : null}
+                  </div>
+                </div>
                 <div className="space-y-3">
                   {categories.map((item, index) => (
                     <div key={`${item.name}-${index}`} className="flex gap-3">
@@ -392,7 +403,22 @@ export default function OnboardPage() {
               </div>
 
               <div>
-                <div className="mb-3 text-lg font-black text-stone-900">Proveedores iniciales</div>
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <div className="text-lg font-black text-stone-900">Proveedores iniciales (opcional)</div>
+                    <p className="text-xs text-stone-500">Déjalo vacío si prefieres registrarlos más adelante.</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="button" variant="secondary" onClick={() => setSuppliers(createSupplierRows(form.posType))}>
+                      Cargar sugeridos
+                    </Button>
+                    {suppliers.length > 0 ? (
+                      <Button type="button" variant="secondary" onClick={() => setSuppliers([])}>
+                        Vaciar lista
+                      </Button>
+                    ) : null}
+                  </div>
+                </div>
                 <div className="space-y-3">
                   {suppliers.map((item, index) => (
                     <div key={`${item.name}-${index}`} className="grid gap-3 md:grid-cols-3">
@@ -412,7 +438,22 @@ export default function OnboardPage() {
 
           {step === 4 ? (
             <div>
-              <div className="mb-3 text-lg font-black text-stone-900">Productos iniciales</div>
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <div className="text-lg font-black text-stone-900">Productos iniciales (opcional)</div>
+                  <p className="text-xs text-stone-500">Puedes finalizar sin productos iniciales para cargar tu catálogo real desde Productos (incluyendo artículos pesables en Kg).</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" variant="secondary" onClick={() => setProducts(createProductRows(form.posType))}>
+                    Cargar ejemplos
+                  </Button>
+                  {products.length > 0 ? (
+                    <Button type="button" variant="secondary" onClick={() => setProducts([])}>
+                      Vaciar lista
+                    </Button>
+                  ) : null}
+                </div>
+              </div>
               <div className="mb-4 rounded-[22px] border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-600">
                 Valores predeterminados: seguimiento de lotes <span className="font-semibold text-stone-900">{selectedShopType.batchTrackingEnabled ? 'activo' : 'opcional'}</span>, seguimiento de caducidad <span className="font-semibold text-stone-900">{selectedShopType.expiryTrackingEnabled ? 'activo' : 'opcional'}</span>.
               </div>

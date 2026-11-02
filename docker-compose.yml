@@ -32,11 +32,14 @@ services:
       - APP_URL=${APP_URL:-http://localhost:3000}
       - PORT=3000
       - MAX_PRODUCT_IMAGE_UPLOAD_MB=${MAX_PRODUCT_IMAGE_UPLOAD_MB:-5}
+      - INIT_ADMIN_NAME=${INIT_ADMIN_NAME:-Administrador}
+      - INIT_ADMIN_EMAIL=${INIT_ADMIN_EMAIL:-}
+      - INIT_ADMIN_PASSWORD=${INIT_ADMIN_PASSWORD:-}
     ports:
       - "3000:3000"
     volumes:
       - uploads_data:/app/public/uploads
-    command: sh -c "npx prisma migrate deploy && npm run start"
+    command: sh -c "npx prisma migrate deploy && npm run bootstrap:admin && npm run start"
 
   worker:
     image: ghcr.io/santi-gs/fiambreria-main:latest
@@ -53,6 +56,17 @@ services:
     environment:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-posuser}:${POSTGRES_PASSWORD:-TuPasswordSeguro123}@db:5432/${POSTGRES_DB:-vertex_pos}?schema=public
     command: npm run worker
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: fiambreria-costanera-tunnel
+    restart: always
+    profiles: ["cloudflare"]
+    depends_on:
+      - web
+    command: tunnel --no-autoupdate run
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN:-}
 
 volumes:
   postgres_data:
