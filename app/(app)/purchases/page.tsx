@@ -21,6 +21,8 @@ export default async function PurchasesPage() {
       where: { shopId, isActive: true },
       include: {
         baseUnitOfMeasure: true,
+        category: { select: { id: true, name: true } },
+        images: { orderBy: { sortOrder: 'asc' }, take: 1 },
         uomConversions: {
           include: {
             unitOfMeasure: true
@@ -36,7 +38,7 @@ export default async function PurchasesPage() {
       where: { shopId },
       include: purchaseDetailInclude,
       orderBy: { createdAt: 'desc' },
-      take: 40
+      take: 200
     }),
     prisma.shopSetting.findUnique({ where: { shopId } })
   ]);
@@ -75,7 +77,11 @@ export default async function PurchasesPage() {
         suppliers={suppliers}
         products={products.map((product) => ({
           ...product,
-          cost: product.cost.toString()
+          cost: product.cost.toString(),
+          price: product.price.toString(),
+          imageUrl: product.images[0]?.imageUrl ?? null,
+          categoryId: product.category?.id ?? null,
+          categoryName: product.category?.name ?? null
         }))}
         units={units}
         purchases={purchases.map((purchase) => serializePurchase(purchase) as unknown as PurchaseView)}

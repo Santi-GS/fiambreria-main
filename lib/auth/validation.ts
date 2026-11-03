@@ -376,7 +376,7 @@ export const purchaseSchema = z.object({
   items: z.array(z.object({
     productId: z.string().trim().min(1),
     unitOfMeasureId: z.string().trim().min(1, 'Select a purchase unit.'),
-    qty: z.coerce.number().int().positive(),
+    qty: z.coerce.number().positive().max(1_000_000),
     unitCost: z.coerce.number().min(0)
   })).min(1)
 });
@@ -407,7 +407,7 @@ export const purchaseReceiptSchema = z.object({
   notes: z.string().trim().max(300).optional().nullable(),
   items: z.array(z.object({
     purchaseItemId: z.string().trim().min(1),
-    qtyReceived: z.coerce.number().int().positive('Received quantity must be greater than zero.')
+    qtyReceived: z.coerce.number().positive('Received quantity must be greater than zero.')
   })).min(1, 'Add at least one received item.')
 });
 

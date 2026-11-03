@@ -454,8 +454,7 @@ export default function ProductFormModal({
         imageUrl: image.imageUrl.trim(),
         altText: image.altText || null,
         sortOrder: Number(image.sortOrder || index)
-      })),
-      ...(editingProduct ? {} : { stockQty: Number(form.stockQty) })
+      }))
     };
 
     try {

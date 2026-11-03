@@ -1,6 +1,7 @@
 import { Prisma, PrismaClient } from '@prisma/client';
 import { logActivity } from '@/lib/activity';
 import { normalizeText, roundCurrency } from '@/lib/inventory';
+import { getCostPerSaleUnit, getPurchaseRatioToStock, isKgBaseProduct } from '@/lib/purchase-units';
 import { requiresReferenceNumber } from '@/lib/payments';
 import {
   canTransitionPurchaseStatus,
@@ -77,12 +78,6 @@ function getPaidAmount(payments: Array<{ amount: Prisma.Decimal }>) {
   return roundCurrency(
     payments.reduce((sum, payment) => sum + Number(payment.amount.toString()), 0)
   );
-}
-
-function getBaseUnitCost(unitCost: Prisma.Decimal, ratioToBase: number) {
-  return ratioToBase > 0
-    ? roundCurrency(Number(unitCost.toString()) / ratioToBase)
-    : roundCurrency(Number(unitCost.toString()));
 }
 
 async function refreshInvoiceBalances(
@@ -232,7 +227,13 @@ export async function receivePurchaseOrder({
   const productIds = [...new Set(purchase.items.map((item) => item.productId))];
   const products = await tx.product.findMany({
     where: { id: { in: productIds } },
-    select: { id: true, cost: true }
+    select: {
+      id: true,
+      cost: true,
+      baseUnitOfMeasureId: true,
+      baseUnitOfMeasure: { select: { code: true } },
+      uomConversions: { select: { unitOfMeasureId: true, ratioToBase: true } }
+    }
   });
   const productMap = new Map(products.map((product) => [product.id, product]));
 
@@ -242,8 +243,17 @@ export async function receivePurchaseOrder({
       throw new PurchaseOperationError('One or more received items no longer match this purchase.', 404);
     }
 
-    const remainingUnits = getPurchaseRemainingUnitQty(purchaseItem);
-    if (entry.qtyReceived > remainingUnits) {
+    // Recompute the stock ratio for untouched lines so older orders (saved with a wrong ratio
+    // for weighable products) are received correctly.
+    const currentProduct = productMap.get(purchaseItem.productId);
+    const correctedRatio =
+      currentProduct && purchaseItem.receivedBaseQty === 0
+        ? getPurchaseRatioToStock(currentProduct, purchaseItem.unitOfMeasureId)
+        : null;
+    const effectiveItem = correctedRatio ? { ...purchaseItem, ratioToBase: correctedRatio } : purchaseItem;
+
+    const remainingUnits = getPurchaseRemainingUnitQty(effectiveItem);
+    if (entry.qtyReceived > remainingUnits + 0.0005) {
       throw new PurchaseOperationError(
         `Cannot receive more than the remaining quantity for ${purchaseItem.productName}.`
       );
@@ -251,8 +261,8 @@ export async function receivePurchaseOrder({
 
     return {
       ...entry,
-      purchaseItem,
-      baseQtyReceived: entry.qtyReceived * purchaseItem.ratioToBase
+      purchaseItem: effectiveItem,
+      baseQtyReceived: Math.round(entry.qtyReceived * effectiveItem.ratioToBase)
     };
   });
 
@@ -293,7 +303,13 @@ export async function receivePurchaseOrder({
       throw new PurchaseOperationError('One or more products on this purchase no longer exist.', 404);
     }
 
-    const nextBaseCost = getBaseUnitCost(item.purchaseItem.unitCost, item.purchaseItem.ratioToBase);
+    const nextBaseCost = roundCurrency(
+      getCostPerSaleUnit(
+        Number(item.purchaseItem.unitCost.toString()),
+        item.purchaseItem.ratioToBase,
+        isKgBaseProduct(product)
+      )
+    );
     if (Number(product.cost.toString()) !== nextBaseCost) {
       await tx.productCostHistory.create({
         data: {
@@ -310,6 +326,7 @@ export async function receivePurchaseOrder({
     await tx.purchaseItem.update({
       where: { id: item.purchaseItem.id },
       data: {
+        ratioToBase: item.purchaseItem.ratioToBase,
         receivedBaseQty: {
           increment: item.baseQtyReceived
         }
@@ -340,6 +357,7 @@ export async function receivePurchaseOrder({
 
     const current = nextItemState.get(item.purchaseItem.id);
     if (current) {
+      current.ratioToBase = item.purchaseItem.ratioToBase;
       current.receivedBaseQty += item.baseQtyReceived;
     }
   }

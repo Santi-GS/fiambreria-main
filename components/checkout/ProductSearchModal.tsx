@@ -47,15 +47,9 @@ function ProductSearchDialog({
   }, [products, search, selectedCategory]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      {/* Backdrop */}
-      <div
-        className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs transition-opacity"
-        onClick={onClose}
-      />
-
-      {/* Modal Dialog */}
-      <div className="relative flex max-h-[88vh] w-full max-w-4xl flex-col rounded-3xl border border-stone-200 bg-white shadow-2xl">
+    <div className="fixed inset-0 z-50 bg-white" role="dialog" aria-modal="true">
+      {/* Full-screen dialog: no outside area, so nothing behind can be tapped by mistake */}
+      <div className="flex h-full w-full flex-col">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-stone-100 p-5">
           <div className="flex items-center gap-2">
@@ -146,7 +140,7 @@ function ProductSearchDialog({
         {/* Product Results List/Grid */}
         <div className="flex-1 overflow-y-auto p-4">
           {filteredProducts.length > 0 ? (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {filteredProducts.map((product) => {
                 const isWeighted = product.baseUnitCode === 'KG';
                 const isOutOfStock = product.stockQty <= 0;

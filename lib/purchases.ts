@@ -84,7 +84,7 @@ export function payableStatusTone(status: PayableLifecycleStatus | string): Tone
 }
 
 export function getPurchaseOrderedBaseQty(item: { qty: number; ratioToBase: number }) {
-  return item.qty * item.ratioToBase;
+  return Math.round(item.qty * item.ratioToBase);
 }
 
 export function getPurchaseReceivedBaseQty(item: { receivedBaseQty: number }) {
@@ -100,11 +100,11 @@ export function getPurchaseReceivedUnitQty(item: { ratioToBase: number; received
     return 0;
   }
 
-  return Math.floor(getPurchaseReceivedBaseQty(item) / item.ratioToBase);
+  return Math.round((getPurchaseReceivedBaseQty(item) / item.ratioToBase) * 1000) / 1000;
 }
 
 export function getPurchaseRemainingUnitQty(item: { qty: number; ratioToBase: number; receivedBaseQty: number }) {
-  return Math.max(item.qty - getPurchaseReceivedUnitQty(item), 0);
+  return Math.round(Math.max(item.qty - getPurchaseReceivedUnitQty(item), 0) * 1000) / 1000;
 }
 
 export function derivePurchaseReceiptStatus(

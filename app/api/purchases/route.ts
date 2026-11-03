@@ -13,6 +13,7 @@ import {
   receivePurchaseOrder
 } from '@/lib/purchase-operations';
 import { prisma } from '@/lib/prisma';
+import { getPurchaseRatioToStock } from '@/lib/purchase-units';
 import { serializePurchase } from '@/lib/purchases';
 import { ensureUnitsOfMeasure } from '@/lib/uom';
 
@@ -109,10 +110,7 @@ export async function POST(request: Request) {
         );
       }
 
-      const ratioToBase =
-        product.baseUnitOfMeasureId === item.unitOfMeasureId
-          ? 1
-          : product.uomConversions.find((conversion) => conversion.unitOfMeasureId === item.unitOfMeasureId)?.ratioToBase;
+      const ratioToBase = getPurchaseRatioToStock(product, item.unitOfMeasureId);
 
       if (!ratioToBase || ratioToBase <= 0) {
         return NextResponse.json(
@@ -150,12 +148,7 @@ export async function POST(request: Request) {
               unitName: unitMap.get(item.unitOfMeasureId)!.name,
               productName: productMap.get(item.productId)!.name,
               qty: item.qty,
-              ratioToBase:
-                productMap.get(item.productId)!.baseUnitOfMeasureId === item.unitOfMeasureId
-                  ? 1
-                  : productMap
-                      .get(item.productId)!
-                      .uomConversions.find((conversion) => conversion.unitOfMeasureId === item.unitOfMeasureId)!.ratioToBase,
+              ratioToBase: getPurchaseRatioToStock(productMap.get(item.productId)!, item.unitOfMeasureId)!,
               receivedBaseQty: 0,
               unitCost: item.unitCost,
               lineTotal: roundCurrency(item.qty * item.unitCost)

@@ -36,7 +36,14 @@ describe('purchases', () => {
   it('computes remaining unit quantity from base quantities', () => {
     expect(
       getPurchaseRemainingUnitQty({ qty: 12, ratioToBase: 2, receivedBaseQty: 9 })
-    ).toBe(8);
+    ).toBe(7.5);
+  });
+
+  it('supports fractional purchase quantities for weighable products', () => {
+    // 4 kg piece = 4000 g stock units; 1 piece ordered, 1.5 kg received
+    expect(
+      getPurchaseRemainingUnitQty({ qty: 1, ratioToBase: 4000, receivedBaseQty: 1500 })
+    ).toBe(0.625);
   });
 
   it('allows only the declared manual transitions', () => {
