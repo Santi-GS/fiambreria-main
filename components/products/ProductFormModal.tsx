@@ -2,17 +2,17 @@
 
 import { type FormEvent, type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import Link from 'next/link';
 import Badge from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
-import BarcodeLabelPreview, { type BarcodeLabelSize } from '@/components/products/BarcodeLabelPreview';
-import { money, shortDate } from '@/lib/format';
+import { type BarcodeLabelSize } from '@/components/products/BarcodeLabelPreview';
+import ProductMediaTab, { emptyImage } from '@/components/products/ProductMediaTab';
+import ProductVariantsTab from '@/components/products/ProductVariantsTab';
+import { money } from '@/lib/format';
 import { buildVariantLabel, getMarginSummary } from '@/lib/product-merchandising';
 import { compressProductImage } from '@/lib/client-image-compression';
 import type {
   Category,
-  ImageDraft,
   Product,
   ProductFormData,
   UnitOfMeasure,
@@ -29,28 +29,6 @@ function FieldLabel({ children, required }: { children: ReactNode; required?: bo
       {required ? <span className="ml-1 text-red-500">*</span> : null}
     </label>
   );
-}
-
-function emptyVariant(): VariantDraft {
-  return {
-    color: '',
-    size: '',
-    flavor: '',
-    model: '',
-    sku: '',
-    barcode: '',
-    priceOverride: '',
-    costOverride: '',
-    isActive: true
-  };
-}
-
-function emptyImage(sortOrder = 0): ImageDraft {
-  return {
-    imageUrl: '',
-    altText: '',
-    sortOrder: String(sortOrder)
-  };
 }
 
 function toVariantLabel(variant: VariantDraft) {
@@ -1094,438 +1072,31 @@ export default function ProductFormModal({
 
             {/* TAB 3: VARIANTES */}
             {activeTab === 'variants' && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="text-sm font-black text-stone-900">Variantes estructuradas</h3>
-                    <p className="text-xs text-stone-500">
-                      Define opciones por color, tamaño, sabor o modelo con precios y códigos específicos.
-                    </p>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    onClick={() =>
-                      setForm((current) => ({
-                        ...current,
-                        variants: [...current.variants, emptyVariant()]
-                      }))
-                    }
-                  >
-                    + Añadir variante
-                  </Button>
-                </div>
-
-                <div className="space-y-4">
-                  {form.variants.length ? (
-                    form.variants.map((variant, index) => (
-                      <div
-                        key={`variant-${index}`}
-                        className="rounded-[24px] border border-stone-200 bg-stone-50/80 p-4 space-y-3"
-                      >
-                        <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-4">
-                          <Input
-                            placeholder="Color (ej: Rojo)"
-                            value={variant.color}
-                            onChange={(event) =>
-                              setForm((current) => ({
-                                ...current,
-                                variants: current.variants.map((v, i) =>
-                                  i === index ? { ...v, color: event.target.value } : v
-                                )
-                              }))
-                            }
-                          />
-                          <Input
-                            placeholder="Talle / Tamaño (ej: Grande)"
-                            value={variant.size}
-                            onChange={(event) =>
-                              setForm((current) => ({
-                                ...current,
-                                variants: current.variants.map((v, i) =>
-                                  i === index ? { ...v, size: event.target.value } : v
-                                )
-                              }))
-                            }
-                          />
-                          <Input
-                            placeholder="Sabor (ej: Ahumado)"
-                            value={variant.flavor}
-                            onChange={(event) =>
-                              setForm((current) => ({
-                                ...current,
-                                variants: current.variants.map((v, i) =>
-                                  i === index ? { ...v, flavor: event.target.value } : v
-                                )
-                              }))
-                            }
-                          />
-                          <Input
-                            placeholder="Modelo (ej: Premium)"
-                            value={variant.model}
-                            onChange={(event) =>
-                              setForm((current) => ({
-                                ...current,
-                                variants: current.variants.map((v, i) =>
-                                  i === index ? { ...v, model: event.target.value } : v
-                                )
-                              }))
-                            }
-                          />
-                          <Input
-                            placeholder="SKU de variante"
-                            value={variant.sku}
-                            onChange={(event) =>
-                              setForm((current) => ({
-                                ...current,
-                                variants: current.variants.map((v, i) =>
-                                  i === index ? { ...v, sku: event.target.value } : v
-                                )
-                              }))
-                            }
-                          />
-                          <Input
-                            placeholder="Código de barras"
-                            value={variant.barcode}
-                            onChange={(event) =>
-                              setForm((current) => ({
-                                ...current,
-                                variants: current.variants.map((v, i) =>
-                                  i === index ? { ...v, barcode: event.target.value } : v
-                                )
-                              }))
-                            }
-                          />
-                          <Input
-                            type="number"
-                            step="0.01"
-                            placeholder="Precio específico"
-                            value={variant.priceOverride}
-                            onChange={(event) =>
-                              setForm((current) => ({
-                                ...current,
-                                variants: current.variants.map((v, i) =>
-                                  i === index ? { ...v, priceOverride: event.target.value } : v
-                                )
-                              }))
-                            }
-                          />
-                          <Input
-                            type="number"
-                            step="0.01"
-                            placeholder="Costo específico"
-                            value={variant.costOverride}
-                            onChange={(event) =>
-                              setForm((current) => ({
-                                ...current,
-                                variants: current.variants.map((v, i) =>
-                                  i === index ? { ...v, costOverride: event.target.value } : v
-                                )
-                              }))
-                            }
-                          />
-                        </div>
-
-                        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-stone-200 pt-3">
-                          <label className="inline-flex items-center gap-2 text-xs font-semibold text-stone-700">
-                            <input
-                              type="checkbox"
-                              checked={variant.isActive}
-                              onChange={(event) =>
-                                setForm((current) => ({
-                                  ...current,
-                                  variants: current.variants.map((v, i) =>
-                                    i === index ? { ...v, isActive: event.target.checked } : v
-                                  )
-                                }))
-                              }
-                            />
-                            Variante activa
-                          </label>
-
-                          <div className="text-xs text-stone-500 font-medium">
-                            Etiqueta:{' '}
-                            <span className="font-bold text-stone-900">
-                              {toVariantLabel(variant) || 'Se generará automáticamente'}
-                            </span>
-                          </div>
-
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            className="text-xs text-red-600 hover:text-red-700"
-                            onClick={() =>
-                              setForm((current) => ({
-                                ...current,
-                                variants: current.variants.filter((_, i) => i !== index)
-                              }))
-                            }
-                          >
-                            Eliminar
-                          </Button>
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="rounded-[24px] border border-dashed border-stone-300 bg-stone-50 p-8 text-center text-xs text-stone-500">
-                      No hay variantes configuradas. Añade colores, tallas o modelos si el producto los requiere.
-                    </div>
-                  )}
-                </div>
-              </div>
+              <ProductVariantsTab
+                variants={form.variants}
+                setForm={setForm}
+                toVariantLabel={toVariantLabel}
+              />
             )}
 
             {/* TAB 4: IMÁGENES Y CÓDIGOS */}
             {activeTab === 'media' && (
-              <div className="space-y-6">
-                {/* Sección Multimedia */}
-                <div className="rounded-[24px] border border-stone-200 bg-stone-50/70 p-5 space-y-4">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <h3 className="text-sm font-black text-stone-900">Imágenes del producto</h3>
-                      <p className="text-xs text-stone-500">Hasta 6 fotos por producto con compresión optimizada.</p>
-                    </div>
-
-                    <input
-                      ref={uploadInputRef}
-                      type="file"
-                      accept="image/*"
-                      multiple
-                      className="hidden"
-                      onChange={(event) => void addUploadedImages(event.target.files)}
-                    />
-                    <input
-                      ref={cameraInputRef}
-                      type="file"
-                      accept="image/*"
-                      capture="environment"
-                      className="hidden"
-                      onChange={(event) => void addUploadedImages(event.target.files)}
-                    />
-
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        onClick={() => cameraInputRef.current?.click()}
-                        disabled={uploadingImages || form.images.length >= 6}
-                        title="Tomar foto directa con la cámara"
-                      >
-                        📷 {uploadingImages ? uploadStatusText || 'Procesando…' : 'Tomar foto'}
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        onClick={() => uploadInputRef.current?.click()}
-                        disabled={uploadingImages || form.images.length >= 6}
-                      >
-                        🖼️ {uploadingImages ? uploadStatusText || 'Subiendo…' : 'Subir archivo'}
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        onClick={() =>
-                          setForm((current) => ({
-                            ...current,
-                            images: [...current.images, emptyImage(current.images.length)]
-                          }))
-                        }
-                      >
-                        + URL
-                      </Button>
-                    </div>
-                  </div>
-
-                  <div className="space-y-3">
-                    {form.images.length ? (
-                      form.images.map((image, index) => (
-                        <div
-                          key={`image-${index}`}
-                          className="rounded-[22px] border border-stone-200 bg-white p-3.5"
-                        >
-                          <div className="grid gap-3 sm:grid-cols-[100px_1fr]">
-                            <div className="overflow-hidden rounded-xl border border-stone-200 bg-stone-50">
-                              {image.imageUrl ? (
-                                <img
-                                  src={image.imageUrl}
-                                  alt={image.altText || form.name || 'Foto del producto'}
-                                  className="h-24 w-full object-cover"
-                                />
-                              ) : (
-                                <div className="flex h-24 items-center justify-center text-xs text-stone-400">
-                                  Sin imagen
-                                </div>
-                              )}
-                            </div>
-                            <div className="space-y-2">
-                              <Input
-                                placeholder="URL de la imagen"
-                                value={image.imageUrl}
-                                onChange={(event) =>
-                                  setForm((current) => ({
-                                    ...current,
-                                    images: current.images.map((img, i) =>
-                                      i === index ? { ...img, imageUrl: event.target.value } : img
-                                    )
-                                  }))
-                                }
-                              />
-                              <div className="grid gap-2 sm:grid-cols-[1fr_80px_auto]">
-                                <Input
-                                  placeholder="Texto descriptivo (alt)"
-                                  value={image.altText}
-                                  onChange={(event) =>
-                                    setForm((current) => ({
-                                      ...current,
-                                      images: current.images.map((img, i) =>
-                                        i === index ? { ...img, altText: event.target.value } : img
-                                      )
-                                    }))
-                                  }
-                                />
-                                <Input
-                                  type="number"
-                                  placeholder="Orden"
-                                  value={image.sortOrder}
-                                  onChange={(event) =>
-                                    setForm((current) => ({
-                                      ...current,
-                                      images: current.images.map((img, i) =>
-                                        i === index ? { ...img, sortOrder: event.target.value } : img
-                                      )
-                                    }))
-                                  }
-                                />
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  className="text-xs text-red-600 hover:text-red-700"
-                                  onClick={() =>
-                                    setForm((current) => ({
-                                      ...current,
-                                      images: current.images.filter((_, i) => i !== index)
-                                    }))
-                                  }
-                                >
-                                  Eliminar
-                                </Button>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="rounded-[22px] border border-dashed border-stone-300 bg-white p-6 text-center text-xs text-stone-500">
-                        Aún no hay fotos añadidas.
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Sección Códigos de Barras */}
-                <div className="rounded-[24px] border border-stone-200 bg-stone-50/70 p-5 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="text-sm font-black text-stone-900">Etiquetas de código de barras</h3>
-                      <p className="text-xs text-stone-500">Vista previa para impresión térmica o adhesiva.</p>
-                    </div>
-                    <select
-                      className={`${selectClassName} w-36`}
-                      value={labelSize}
-                      onChange={(event) => setLabelSize(event.target.value as BarcodeLabelSize)}
-                    >
-                      <option value="small">Pequeña</option>
-                      <option value="medium">Mediana</option>
-                      <option value="large">Grande</option>
-                    </select>
-                  </div>
-
-                  <div className="space-y-3">
-                    <BarcodeLabelPreview
-                      code={form.barcode || form.sku}
-                      productName={form.name || 'Producto'}
-                      sku={form.sku || null}
-                      size={labelSize}
-                    />
-
-                    {form.variants
-                      .filter((variant) => variant.barcode || variant.sku)
-                      .slice(0, 2)
-                      .map((variant, index) => (
-                        <BarcodeLabelPreview
-                          key={`barcode-preview-${index}`}
-                          code={variant.barcode || variant.sku}
-                          productName={form.name || 'Producto'}
-                          variantLabel={toVariantLabel(variant)}
-                          sku={variant.sku || null}
-                          size={labelSize}
-                        />
-                      ))}
-                  </div>
-
-                  {editingProduct ? (
-                    <div className="flex flex-wrap gap-2 pt-2">
-                      <Link
-                        href={`/print/barcode-labels?productId=${editingProduct.id}&size=${labelSize}`}
-                        target="_blank"
-                      >
-                        <Button type="button" variant="secondary">
-                          🖨️ Imprimir etiquetas del producto
-                        </Button>
-                      </Link>
-                    </div>
-                  ) : null}
-                </div>
-
-                {/* Historial en modo edición */}
-                {editingProduct && canViewPurchaseCosts ? (
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="rounded-[24px] border border-stone-200 bg-white p-4">
-                      <div className="text-xs font-bold uppercase tracking-wider text-stone-400">
-                        Historial de precios
-                      </div>
-                      <div className="mt-3 space-y-2 max-h-48 overflow-y-auto">
-                        {editingProduct.priceHistory.length ? (
-                          editingProduct.priceHistory.map((entry) => (
-                            <div key={entry.id} className="rounded-xl border border-stone-100 bg-stone-50 p-2.5 text-xs">
-                              <div className="font-bold text-stone-900">
-                                {money(entry.previousPrice, currencySymbol)} → {money(entry.newPrice, currencySymbol)}
-                              </div>
-                              <div className="text-[11px] text-stone-500">
-                                {shortDate(entry.effectiveDate)} por {entry.changedByUser.name ?? entry.changedByUser.email}
-                              </div>
-                            </div>
-                          ))
-                        ) : (
-                          <div className="text-xs text-stone-400">Sin cambios de precio registrados.</div>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="rounded-[24px] border border-stone-200 bg-white p-4">
-                      <div className="text-xs font-bold uppercase tracking-wider text-stone-400">
-                        Historial de costos
-                      </div>
-                      <div className="mt-3 space-y-2 max-h-48 overflow-y-auto">
-                        {editingProduct.costHistory.length ? (
-                          editingProduct.costHistory.map((entry) => (
-                            <div key={entry.id} className="rounded-xl border border-stone-100 bg-stone-50 p-2.5 text-xs">
-                              <div className="font-bold text-stone-900">
-                                {money(entry.previousCost, currencySymbol)} → {money(entry.newCost, currencySymbol)}
-                              </div>
-                              <div className="text-[11px] text-stone-500">
-                                {shortDate(entry.effectiveDate)} por {entry.changedByUser.name ?? entry.changedByUser.email}
-                              </div>
-                            </div>
-                          ))
-                        ) : (
-                          <div className="text-xs text-stone-400">Sin cambios de costo registrados.</div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ) : null}
-              </div>
+              <ProductMediaTab
+                form={form}
+                setForm={setForm}
+                editingProduct={editingProduct}
+                canViewPurchaseCosts={canViewPurchaseCosts}
+                currencySymbol={currencySymbol}
+                labelSize={labelSize}
+                setLabelSize={setLabelSize}
+                selectClassName={selectClassName}
+                uploadingImages={uploadingImages}
+                uploadStatusText={uploadStatusText}
+                uploadInputRef={uploadInputRef}
+                cameraInputRef={cameraInputRef}
+                addUploadedImages={addUploadedImages}
+                toVariantLabel={toVariantLabel}
+              />
             )}
           </div>
 
