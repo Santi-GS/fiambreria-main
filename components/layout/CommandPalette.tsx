@@ -35,6 +35,13 @@ export default function CommandPalette({ role }: { role: ShopRole }) {
         href: '/checkout'
       },
       {
+        id: 'new-shop',
+        label: 'Nuevo negocio',
+        description: 'Crear un nuevo negocio o sucursal y configurarlo paso a paso.',
+        minRole: 'MANAGER',
+        href: '/shops/new'
+      },
+      {
         id: 'open-register',
         label: 'Abrir caja',
         description: 'Iniciar una sesión de caja con fondo inicial.',

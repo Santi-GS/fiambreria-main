@@ -38,6 +38,7 @@ type IconName =
   | 'purchases'
   | 'reports'
   | 'settings'
+  | 'new-shop'
   | 'activity'
   | 'staff';
 
@@ -217,6 +218,13 @@ const sections: Array<{ title: string; links: NavLink[] }> = [
         description: 'Reglas, impuestos, recibos y valores predeterminados.',
         icon: 'settings',
         minRole: 'MANAGER'
+      },
+      {
+        href: '/shops/new',
+        label: 'Nuevo negocio',
+        description: 'Crea un nuevo negocio o sucursal.',
+        icon: 'new-shop',
+        minRole: 'MANAGER'
       }
     ]
   }
@@ -368,6 +376,16 @@ function SidebarIcon({ name, active = false }: { name: IconName; active?: boolea
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={`${common} ${color}`}>
           <path d="M12 8.5A3.5 3.5 0 1 0 12 15.5A3.5 3.5 0 1 0 12 8.5Z" />
           <path d="M19.4 15a1 1 0 0 0 .2 1.1l.1.1a2 2 0 0 1-2.8 2.8l-.1-.1a1 1 0 0 0-1.1-.2 1 1 0 0 0-.6.9V20a2 2 0 0 1-4 0v-.2a1 1 0 0 0-.6-.9 1 1 0 0 0-1.1.2l-.1.1a2 2 0 0 1-2.8-2.8l.1-.1a1 1 0 0 0 .2-1.1 1 1 0 0 0-.9-.6H4a2 2 0 0 1 0-4h.2a1 1 0 0 0 .9-.6 1 1 0 0 0-.2-1.1l-.1-.1a2 2 0 0 1 2.8-2.8l.1.1a1 1 0 0 0 1.1.2 1 1 0 0 0 .6-.9V4a2 2 0 0 1 4 0v.2a1 1 0 0 0 .6.9 1 1 0 0 0 1.1-.2l.1-.1a2 2 0 0 1 2.8 2.8l-.1.1a1 1 0 0 0-.2 1.1 1 1 0 0 0 .9.6H20a2 2 0 0 1 0 4h-.2a1 1 0 0 0-.4 1.9" />
+        </svg>
+      );
+    case 'new-shop':
+      return (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={`${common} ${color}`}>
+          <path d="M3 9l1-4h16l1 4" />
+          <path d="M5 9v10h7" />
+          <path d="M19 9v4" />
+          <path d="M17 16v6" />
+          <path d="M14 19h6" />
         </svg>
       );
     case 'staff':

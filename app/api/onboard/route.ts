@@ -46,13 +46,24 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const existing = await prisma.userShop.findFirst({
+    const existingMemberships = await prisma.userShop.findMany({
       where: { userId: session.user.id },
-      include: { shop: true }
+      select: { role: true, isActive: true }
     });
 
-    if (existing) {
-      return NextResponse.json({ shop: existing.shop });
+    if (existingMemberships.length > 0) {
+      const canCreateShop = existingMemberships.some(
+        (membership) =>
+          membership.isActive &&
+          (membership.role === ShopRole.ADMIN || membership.role === ShopRole.MANAGER)
+      );
+
+      if (!canCreateShop) {
+        return NextResponse.json(
+          { error: 'Solo un administrador o gerente puede crear un nuevo negocio.' },
+          { status: 403 }
+        );
+      }
     }
 
     const body = await request.json();
