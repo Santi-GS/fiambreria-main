@@ -13,13 +13,19 @@ function sanitizeSegment(value: string) {
     .replace(/^-|-$/g, '') || 'shop';
 }
 
+export class ProductImageValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ProductImageValidationError';
+  }
+}
+
 function extensionFromMimeType(mimeType: string) {
   if (mimeType === 'image/jpeg' || mimeType === 'image/jpg') return '.jpg';
   if (mimeType === 'image/png') return '.png';
   if (mimeType === 'image/webp') return '.webp';
   if (mimeType === 'image/gif') return '.gif';
-  if (mimeType === 'image/svg+xml') return '.svg';
-  return '.bin';
+  return null;
 }
 
 function maxUploadBytes() {
@@ -58,26 +64,28 @@ export function extractLocalProductUploadPaths(values: string[]) {
 
 export async function saveProductImageUpload(shopId: string, file: File) {
   if (!file || typeof file.arrayBuffer !== 'function') {
-    throw new Error('No upload file received.');
+    throw new ProductImageValidationError('No upload file received.');
   }
 
-  if (!file.type.startsWith('image/')) {
-    throw new Error('Only image uploads are allowed.');
+  const extension = extensionFromMimeType(file.type);
+  if (!extension) {
+    throw new ProductImageValidationError('Only JPEG, PNG, WebP, and GIF images are allowed.');
   }
 
   if (file.size <= 0) {
-    throw new Error('Uploaded image is empty.');
+    throw new ProductImageValidationError('Uploaded image is empty.');
   }
 
   if (file.size > maxUploadBytes()) {
-    throw new Error(`Image exceeds the ${process.env.MAX_PRODUCT_IMAGE_UPLOAD_MB || '5'} MB upload limit.`);
+    throw new ProductImageValidationError(
+      `Image exceeds the ${process.env.MAX_PRODUCT_IMAGE_UPLOAD_MB || '5'} MB upload limit.`
+    );
   }
 
   const now = new Date();
   const year = String(now.getUTCFullYear());
   const month = String(now.getUTCMonth() + 1).padStart(2, '0');
   const safeShopId = sanitizeSegment(shopId);
-  const extension = extensionFromMimeType(file.type);
   const fileName = `${Date.now()}-${randomUUID()}${extension}`;
   const relativeDirectory = path.posix.join('/uploads/products', safeShopId, year, month);
   const relativePath = path.posix.join(relativeDirectory, fileName);

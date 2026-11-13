@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requirePermission } from '@/lib/authz';
 import { apiErrorResponse } from '@/lib/api';
-import { saveProductImageUpload } from '@/lib/product-images';
+import { ProductImageValidationError, saveProductImageUpload } from '@/lib/product-images';
 
 export const runtime = 'nodejs';
 
@@ -19,6 +19,10 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ imageUrl });
   } catch (error) {
+    if (error instanceof ProductImageValidationError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+
     return apiErrorResponse(error, 'Unable to upload product image.');
   }
 }

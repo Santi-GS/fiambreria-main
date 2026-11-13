@@ -1,4 +1,4 @@
-import { DocumentSequenceType } from '@prisma/client';
+import { DocumentSequenceType, Prisma } from '@prisma/client';
 import { NextResponse } from 'next/server';
 import { saleSchema } from '@/lib/auth/validation';
 import { requireRole } from '@/lib/authz';
@@ -60,6 +60,49 @@ function serializeSale<T extends {
   };
 }
 
+class SaleInsufficientStockError extends Error {
+  conflicts: SaleConflict[];
+
+  constructor(conflicts: SaleConflict[]) {
+    super(conflicts.map((conflict) => conflict.message).join(' '));
+    this.name = 'SaleInsufficientStockError';
+    this.conflicts = conflicts;
+  }
+}
+
+function serializeSaleWithRelations<
+  T extends {
+    createdAt: Date;
+    subtotal: { toString(): string };
+    taxAmount: { toString(): string };
+    discountAmount: { toString(): string };
+    totalAmount: { toString(): string };
+    changeDue: { toString(): string };
+    items: Array<{
+      unitPrice: { toString(): string };
+      lineTotal: { toString(): string };
+    }>;
+    payments: Array<{
+      amount: { toString(): string };
+      createdAt: Date;
+    }>;
+  }
+>(sale: T) {
+  return {
+    ...serializeSale(sale),
+    items: sale.items.map((item) => ({
+      ...item,
+      unitPrice: item.unitPrice.toString(),
+      lineTotal: item.lineTotal.toString()
+    })),
+    payments: sale.payments.map((payment) => ({
+      ...payment,
+      amount: payment.amount.toString(),
+      createdAt: payment.createdAt.toISOString()
+    }))
+  };
+}
+
 function conflictResponse(error: string, conflicts: SaleConflict[]) {
   return NextResponse.json(
     {
@@ -96,8 +139,13 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  let shopId: string | null = null;
+  let clientRequestId: string | null = null;
+
   try {
-    const { shopId, userId, session } = await requireRole('CASHIER');
+    const authContext = await requireRole('CASHIER');
+    shopId = authContext.shopId;
+    const { userId, session } = authContext;
     const body = await request.json();
     const parsed = saleSchema.safeParse(body);
 
@@ -116,7 +164,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const clientRequestId = normalizeText(parsed.data.clientRequestId);
+    clientRequestId = normalizeText(parsed.data.clientRequestId);
     if (clientRequestId) {
       const existingSale = await prisma.sale.findFirst({
         where: {
@@ -133,19 +181,7 @@ export async function POST(request: Request) {
 
       if (existingSale) {
         return NextResponse.json({
-          sale: {
-            ...serializeSale(existingSale),
-            items: existingSale.items.map((item) => ({
-              ...item,
-              unitPrice: item.unitPrice.toString(),
-              lineTotal: item.lineTotal.toString()
-            })),
-            payments: existingSale.payments.map((payment) => ({
-              ...payment,
-              amount: payment.amount.toString(),
-              createdAt: payment.createdAt.toISOString()
-            }))
-          },
+          sale: serializeSaleWithRelations(existingSale),
           alreadySynced: true
         });
       }
@@ -377,19 +413,21 @@ export async function POST(request: Request) {
 
     const sale = await prisma.$transaction(async (tx) => {
       const saleNumber = await getNextDocumentNumber(tx, {
-        shopId,
+        shopId: shopId!,
         type: DocumentSequenceType.SALE,
-        prefix: settings?.salePrefix ?? 'SAL'
+        prefix: settings?.salePrefix ?? 'SAL',
+        timeZone: settings?.timezone
       });
       const receiptNumber = await getNextDocumentNumber(tx, {
-        shopId,
+        shopId: shopId!,
         type: DocumentSequenceType.RECEIPT,
-        prefix: settings?.receiptPrefix ?? 'RCP'
+        prefix: settings?.receiptPrefix ?? 'RCP',
+        timeZone: settings?.timezone
       });
 
       const saleRecord = await tx.sale.create({
         data: {
-          shopId,
+          shopId: shopId!,
           cashierUserId: userId,
           customerId: customer?.id ?? null,
           saleNumber,
@@ -446,7 +484,7 @@ export async function POST(request: Request) {
         if (isCreditSale && creditDueDate) {
           await tx.customerCreditLedger.create({
             data: {
-              shopId,
+              shopId: shopId!,
               customerId: customer.id,
               saleId: saleRecord.id,
               dueDate: creditDueDate,
@@ -463,8 +501,13 @@ export async function POST(request: Request) {
         const product = productMap.get(productId)!;
         const isKg = product.baseUnitOfMeasure?.code === 'KG';
         const decrementQty = isKg ? Math.round(qty * 1000) : Math.max(1, Math.round(qty));
-        await tx.product.update({
-          where: { id: product.id },
+        const stockUpdate = await tx.product.updateMany({
+          where: {
+            id: product.id,
+            shopId: shopId!,
+            isActive: true,
+            stockQty: { gte: decrementQty }
+          },
           data: {
             stockQty: {
               decrement: decrementQty
@@ -472,9 +515,40 @@ export async function POST(request: Request) {
           }
         });
 
+        if (stockUpdate.count === 0) {
+          const latestProduct = await tx.product.findFirst({
+            where: { id: product.id, shopId: shopId! },
+            select: { stockQty: true, isActive: true }
+          });
+
+          if (!latestProduct || !latestProduct.isActive) {
+            throw new SaleInsufficientStockError([
+              {
+                type: 'PRODUCT_UNAVAILABLE',
+                productId: product.id,
+                variantId: null,
+                productName: product.name,
+                message: `${product.name} está archivado y no puede venderse.`
+              }
+            ]);
+          }
+
+          throw new SaleInsufficientStockError([
+            {
+              type: 'INSUFFICIENT_STOCK',
+              productId: product.id,
+              variantId: null,
+              productName: product.name,
+              requestedQty: qty,
+              availableQty: isKg ? latestProduct.stockQty / 1000 : latestProduct.stockQty,
+              message: `${product.name} solo tiene ${isKg ? `${(latestProduct.stockQty / 1000).toFixed(3)} Kg` : `${latestProduct.stockQty} unidad(es)`} disponible(s).`
+            }
+          ]);
+        }
+
         await tx.inventoryMovement.create({
           data: {
-            shopId,
+            shopId: shopId!,
             productId: product.id,
             type: 'SALE_COMPLETED',
             qtyChange: -decrementQty,
@@ -488,7 +562,7 @@ export async function POST(request: Request) {
 
       await logActivity({
         tx,
-        shopId,
+        shopId: shopId!,
         userId,
         action: clientRequestId ? 'SALE_SYNCED_FROM_OFFLINE_QUEUE' : 'SALE_COMPLETED',
         entityType: 'Sale',
@@ -518,23 +592,37 @@ export async function POST(request: Request) {
 
     return NextResponse.json(
       {
-        sale: {
-          ...serializeSale(sale),
-          items: sale.items.map((item) => ({
-            ...item,
-            unitPrice: item.unitPrice.toString(),
-            lineTotal: item.lineTotal.toString()
-          })),
-          payments: sale.payments.map((payment) => ({
-            ...payment,
-            amount: payment.amount.toString(),
-            createdAt: payment.createdAt.toISOString()
-          }))
-        }
+        sale: serializeSaleWithRelations(sale)
       },
       { status: 201 }
     );
   } catch (error) {
+    if (error instanceof SaleInsufficientStockError) {
+      return conflictResponse(error.message, error.conflicts);
+    }
+
+    if (
+      clientRequestId &&
+      shopId &&
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2002'
+    ) {
+      const existingSale = await prisma.sale.findFirst({
+        where: { shopId, clientRequestId },
+        include: {
+          items: true,
+          payments: { orderBy: { createdAt: 'asc' } }
+        }
+      });
+
+      if (existingSale) {
+        return NextResponse.json({
+          sale: serializeSaleWithRelations(existingSale),
+          alreadySynced: true
+        });
+      }
+    }
+
     return apiErrorResponse(error, 'No fue posible completar la venta.');
   }
 }

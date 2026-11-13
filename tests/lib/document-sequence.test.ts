@@ -44,4 +44,28 @@ describe('lib/document-sequence', () => {
 
     expect(result).toMatch(/^RET-\d{8}-0001$/);
   });
+
+  it('uses the shop timezone when formatting the sequence date key', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-11-13T01:30:00Z'));
+
+    try {
+      const tx = {
+        documentSequence: {
+          upsert: vi.fn().mockResolvedValue({ value: 3 })
+        }
+      } as any;
+
+      const result = await getNextDocumentNumber(tx, {
+        shopId: 'shop_ar',
+        type: DocumentSequenceType.SALE,
+        prefix: 'SAL',
+        timeZone: 'America/Argentina/Buenos_Aires'
+      });
+
+      expect(result).toBe('SAL-20261112-0003');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
