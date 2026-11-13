@@ -1,172 +1,32 @@
 'use client';
 
-import Link from 'next/link';
 import { useMemo, useState } from 'react';
-import Badge from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
-import Input from '@/components/ui/Input';
-import { dateTime, money, shortDate } from '@/lib/format';
+import { formatDateInputValue, money } from '@/lib/format';
 import { PAYMENT_METHODS } from '@/lib/payments';
 import {
   CreatePurchaseStatus,
-  getPayableStatusLabel,
-  getPurchaseReceivedUnitQty,
   getPurchaseRemainingUnitQty,
-  getPurchaseStatusLabel,
-  payableStatusTone,
-  purchaseStatusTone
+  getPurchaseStatusLabel
 } from '@/lib/purchases';
+import PurchaseHistoryTab from '@/components/purchases/PurchaseHistoryTab';
 import PurchaseProductPicker from '@/components/purchases/PurchaseProductPicker';
 import QuickSupplierModal from '@/components/purchases/QuickSupplierModal';
+import {
+  type InvoiceDraft,
+  type Line,
+  type PaymentDraft,
+  type Product,
+  type Purchase,
+  type ReceiptDraft,
+  type Supplier,
+  type SupplierInvoice,
+  type UnitOfMeasure
+} from '@/components/purchases/types';
 import { formatStock, getPurchaseRatioToStock, isKgBaseProduct } from '@/lib/purchase-units';
 
-type Supplier = { id: string; name: string };
-type UnitOfMeasure = { id: string; code: string; name: string; isBase: boolean };
-type Product = {
-  id: string;
-  name: string;
-  cost: string;
-  stockQty: number;
-  barcode?: string | null;
-  sku?: string | null;
-  imageUrl?: string | null;
-  categoryId?: string | null;
-  categoryName?: string | null;
-  baseUnitOfMeasureId: string | null;
-  baseUnitOfMeasure?: UnitOfMeasure | null;
-  uomConversions: Array<{
-    id: string;
-    unitOfMeasureId: string;
-    ratioToBase: number;
-    unitOfMeasure: UnitOfMeasure;
-  }>;
-};
-type PurchaseItem = {
-  id: string;
-  productId: string;
-  unitName: string;
-  ratioToBase: number;
-  receivedBaseQty: number;
-  productName: string;
-  qty: number;
-  unitCost: string;
-  lineTotal: string;
-};
-type PurchaseReceiptItem = {
-  id: string;
-  purchaseItemId: string;
-  productId: string;
-  qtyReceived: number;
-  createdAt: string;
-  product: { id: string; name: string };
-};
-type PurchaseReceipt = {
-  id: string;
-  receivedAt: string;
-  notes: string | null;
-  createdAt: string;
-  receivedByUser: { id: string; name: string | null; email: string };
-  items: PurchaseReceiptItem[];
-};
-type SupplierPayment = {
-  id: string;
-  method: string;
-  amount: string;
-  referenceNumber: string | null;
-  paidAt: string;
-  createdAt: string;
-  createdByUser: { id: string; name: string | null; email: string };
-};
-type AccountsPayableEntry = {
-  id: string;
-  amountDue: string;
-  amountPaid: string;
-  balance: string;
-  status: string;
-  dueDate: string;
-  createdAt: string;
-  updatedAt: string;
-};
-type SupplierInvoice = {
-  id: string;
-  invoiceNumber: string;
-  invoiceDate: string;
-  dueDate: string;
-  totalAmount: string;
-  paymentStatus: string;
-  notes: string | null;
-  createdAt: string;
-  updatedAt: string;
-  payments?: SupplierPayment[];
-  payableEntry?: AccountsPayableEntry | null;
-};
-export type Purchase = {
-  id: string;
-  purchaseNumber: string;
-  totalAmount: string;
-  status: string;
-  notes: string | null;
-  createdAt: string;
-  updatedAt: string;
-  receivedAt: string | null;
-  supplier: { name: string };
-  items: PurchaseItem[];
-  receipts?: PurchaseReceipt[];
-  supplierInvoice?: SupplierInvoice | null;
-};
-type Line = {
-  productId: string;
-  productName: string;
-  unitOfMeasureId: string;
-  unitName: string;
-  ratioToBase: number;
-  receivedBaseQty: number;
-  qty: number;
-  unitCost: number;
-};
-type ReceiptDraft = {
-  receivedAt: string;
-  notes: string;
-  items: Record<string, string>;
-};
-type InvoiceDraft = {
-  invoiceNumber: string;
-  invoiceDate: string;
-  dueDate: string;
-  totalAmount: string;
-  notes: string;
-};
-type PaymentDraft = {
-  method: string;
-  amount: string;
-  referenceNumber: string;
-  paidAt: string;
-};
-
-function toDateInputValue(value = new Date()) {
-  const offset = value.getTimezoneOffset();
-  return new Date(value.getTime() - offset * 60_000).toISOString().slice(0, 10);
-}
-
-function isReceivable(status: string) {
-  return status === 'DRAFT' || status === 'SENT' || status === 'PARTIALLY_RECEIVED';
-}
-
-function getAvailableStatusActions(status: string) {
-  switch (status) {
-    case 'DRAFT':
-      return ['SENT', 'CANCELLED'] as const;
-    case 'SENT':
-      return ['DRAFT', 'CANCELLED'] as const;
-    case 'PARTIALLY_RECEIVED':
-      return ['CLOSED'] as const;
-    case 'FULLY_RECEIVED':
-      return ['CLOSED'] as const;
-    default:
-      return [] as const;
-  }
-}
+export type { Purchase };
 
 function getStatusButtonLabel(status: string) {
   switch (status) {
@@ -185,7 +45,7 @@ function getStatusButtonLabel(status: string) {
 
 function initializeReceiptDraft(purchase: Purchase): ReceiptDraft {
   return {
-    receivedAt: toDateInputValue(),
+    receivedAt: formatDateInputValue(),
     notes: '',
     items: Object.fromEntries(
       purchase.items.map((item) => [item.id, String(getPurchaseRemainingUnitQty(item))])
@@ -196,8 +56,8 @@ function initializeReceiptDraft(purchase: Purchase): ReceiptDraft {
 function initializeInvoiceDraft(purchase: Purchase): InvoiceDraft {
   return {
     invoiceNumber: purchase.supplierInvoice?.invoiceNumber ?? '',
-    invoiceDate: purchase.supplierInvoice?.invoiceDate?.slice(0, 10) ?? toDateInputValue(),
-    dueDate: purchase.supplierInvoice?.dueDate?.slice(0, 10) ?? toDateInputValue(),
+    invoiceDate: purchase.supplierInvoice?.invoiceDate?.slice(0, 10) ?? formatDateInputValue(),
+    dueDate: purchase.supplierInvoice?.dueDate?.slice(0, 10) ?? formatDateInputValue(),
     totalAmount: purchase.supplierInvoice?.totalAmount ?? purchase.totalAmount,
     notes: purchase.supplierInvoice?.notes ?? ''
   };
@@ -208,7 +68,7 @@ function initializePaymentDraft(invoice: SupplierInvoice | null | undefined): Pa
     method: PAYMENT_METHODS[0],
     amount: invoice?.payableEntry?.balance ?? '0',
     referenceNumber: '',
-    paidAt: toDateInputValue()
+    paidAt: formatDateInputValue()
   };
 }
 
@@ -884,546 +744,50 @@ export default function PurchaseManager({
       ) : null}
 
       {tab === 'history' ? (
-      <Card>
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-          <div className="text-lg font-black text-stone-900">
-            Historial de compras
-            <span className="ml-2 text-sm font-semibold text-stone-500">
-              {filteredHistory.length}
-              {hasActiveFilters ? ` de ${history.length}` : ''}
-            </span>
-          </div>
-          {hasActiveFilters ? (
-            <Button type="button" variant="ghost" onClick={clearFilters}>Limpiar filtros</Button>
-          ) : null}
-        </div>
-
-        <div className="mb-5 grid gap-3 rounded-2xl border border-stone-200 bg-stone-50 p-3">
-          <input
-            type="search"
-            className={fieldClass}
-            placeholder="Buscar por número, proveedor o producto…"
-            value={historySearch}
-            onChange={(event) => setHistorySearch(event.target.value)}
-          />
-          <div className="flex flex-wrap gap-2">
-            {([
-              ['all', 'Todo'],
-              ['today', 'Hoy'],
-              ['week', 'Últimos 7 días'],
-              ['month', 'Este mes']
-            ] as const).map(([value, label]) => (
-              <button
-                key={value}
-                type="button"
-                onClick={() => {
-                  setHistoryRange(value);
-                  setHistoryFrom('');
-                  setHistoryTo('');
-                }}
-                className={`rounded-full border px-3 py-1.5 text-xs font-bold transition ${
-                  historyRange === value
-                    ? 'border-emerald-600 bg-emerald-600 text-white'
-                    : 'border-stone-300 bg-white text-stone-700 hover:border-stone-400'
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-          <div className="grid gap-2 sm:grid-cols-3">
-            <select className={fieldClass} value={historySupplier} onChange={(event) => setHistorySupplier(event.target.value)} aria-label="Proveedor">
-              <option value="">Todos los proveedores</option>
-              {suppliers.map((supplier) => (
-                <option key={supplier.id} value={supplier.name}>{supplier.name}</option>
-              ))}
-            </select>
-            <select className={fieldClass} value={historyStatus} onChange={(event) => setHistoryStatus(event.target.value)} aria-label="Estado">
-              <option value="">Todos los estados</option>
-              {['DRAFT', 'SENT', 'PARTIALLY_RECEIVED', 'FULLY_RECEIVED', 'CLOSED', 'CANCELLED'].map((value) => (
-                <option key={value} value={value}>{getPurchaseStatusLabel(value)}</option>
-              ))}
-            </select>
-            <select className={fieldClass} value={historyPayment} onChange={(event) => setHistoryPayment(event.target.value)} aria-label="Pago">
-              <option value="">Todos los pagos</option>
-              <option value="NO_INVOICE">Sin factura</option>
-              {['UNPAID', 'PARTIALLY_PAID', 'PAID', 'OVERDUE'].map((value) => (
-                <option key={value} value={value}>{getPayableStatusLabel(value)}</option>
-              ))}
-            </select>
-          </div>
-          <div className="grid gap-2 sm:grid-cols-2">
-            <label className="grid gap-1 text-xs font-semibold text-stone-500">
-              Desde
-              <input type="date" className={fieldClass} value={historyFrom} onChange={(event) => { setHistoryFrom(event.target.value); setHistoryRange('all'); }} />
-            </label>
-            <label className="grid gap-1 text-xs font-semibold text-stone-500">
-              Hasta
-              <input type="date" className={fieldClass} value={historyTo} onChange={(event) => { setHistoryTo(event.target.value); setHistoryRange('all'); }} />
-            </label>
-          </div>
-        </div>
-
-        <div className="space-y-4">
-          {filteredHistory.length ? (
-            filteredHistory.map((purchase) => {
-              const invoice = purchase.supplierInvoice ?? null;
-              const outstandingBalance = Number(invoice?.payableEntry?.balance ?? 0);
-              const statusActions = getAvailableStatusActions(purchase.status);
-
-              return (
-                <div key={purchase.id} className="rounded-2xl border border-stone-200 p-4">
-                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                    <div>
-                      <div className="font-semibold text-stone-900">{purchase.purchaseNumber}</div>
-                      <div className="text-sm text-stone-500">{purchase.supplier.name}</div>
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        <Badge tone={purchaseStatusTone(purchase.status)}>{getPurchaseStatusLabel(purchase.status)}</Badge>
-                        <Badge tone="blue">{purchase.items.length} línea(s)</Badge>
-                        {invoice?.payableEntry ? (
-                          <Badge tone={payableStatusTone(invoice.payableEntry.status)}>
-                            {getPayableStatusLabel(invoice.payableEntry.status)}
-                          </Badge>
-                        ) : null}
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="font-black text-stone-900">{money(purchase.totalAmount, currencySymbol)}</div>
-                      <div className="text-xs text-stone-500">Creada el {dateTime(purchase.createdAt)}</div>
-                      {purchase.receivedAt ? (
-                        <div className="text-xs text-stone-500">Última recepción el {dateTime(purchase.receivedAt)}</div>
-                      ) : null}
-                    </div>
-                  </div>
-
-                  <div className="mt-4 space-y-2 rounded-2xl bg-stone-50 p-4 text-sm text-stone-700">
-                    {purchase.items.map((item) => {
-                      const receivedUnits = getPurchaseReceivedUnitQty(item);
-                      const remainingUnits = getPurchaseRemainingUnitQty(item);
-
-                      return (
-                        <div key={item.id} className="rounded-2xl border border-stone-200 bg-white px-4 py-3">
-                          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                            <div>
-                              <div className="font-semibold text-stone-900">{item.productName}</div>
-                              <div className="text-xs text-stone-500">
-                                Pedido: {item.qty} {item.unitName.toLowerCase()}{item.qty === 1 ? '' : 's'} / Recibido: {receivedUnits} / Pendiente: {remainingUnits}
-                              </div>
-
-                            </div>
-                            <div className="text-sm font-semibold text-stone-700">
-                              {money(item.lineTotal, currencySymbol)}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {purchase.notes ? (
-                    <div className="mt-3 text-sm text-stone-500">Notas: {purchase.notes}</div>
-                  ) : null}
-
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {statusActions.map((nextStatus) => (
-                      <Button
-                        key={nextStatus}
-                        type="button"
-                        variant={nextStatus === 'CANCELLED' ? 'danger' : 'secondary'}
-                        onClick={() => updateStatus(purchase.id, nextStatus)}
-                        disabled={busyPurchaseId === purchase.id}
-                      >
-                        {getStatusButtonLabel(nextStatus)}
-                      </Button>
-                    ))}
-                    {isReceivable(purchase.status) ? (
-                      <Button
-                        type="button"
-                        onClick={() => {
-                          setReceiptDrafts((current) => ({
-                            ...current,
-                            [purchase.id]: current[purchase.id] ?? initializeReceiptDraft(purchase)
-                          }));
-                          setActiveReceiptId((current) => (current === purchase.id ? null : purchase.id));
-                        }}
-                        disabled={busyPurchaseId === purchase.id}
-                      >
-                        Recibir entrega
-                      </Button>
-                    ) : null}
-                    {purchase.status !== 'CANCELLED' ? (
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        onClick={() => {
-                          setInvoiceDrafts((current) => ({
-                            ...current,
-                            [purchase.id]: current[purchase.id] ?? initializeInvoiceDraft(purchase)
-                          }));
-                          setActiveInvoiceId((current) => (current === purchase.id ? null : purchase.id));
-                        }}
-                        disabled={busyPurchaseId === purchase.id}
-                      >
-                        {purchase.supplierInvoice ? 'Editar factura' : 'Agregar factura'}
-                      </Button>
-                    ) : null}
-                    {invoice ? (
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        onClick={() => {
-                          setPaymentDrafts((current) => ({
-                            ...current,
-                            [purchase.id]: current[purchase.id] ?? initializePaymentDraft(invoice)
-                          }));
-                          setActivePaymentId((current) => (current === purchase.id ? null : purchase.id));
-                        }}
-                        disabled={busyPurchaseId === purchase.id || outstandingBalance <= 0}
-                      >
-                        Registrar pago
-                      </Button>
-                    ) : null}
-                  </div>
-
-                  {activeReceiptId === purchase.id ? (
-                    <div className="mt-4 rounded-2xl border border-stone-200 bg-stone-50 p-4">
-                      <div className="text-sm font-semibold text-stone-900">Recibir entrega</div>
-                      <div className="mt-3 grid gap-3 md:grid-cols-2">
-                        <Input
-                          type="date"
-                          value={(receiptDrafts[purchase.id] ?? initializeReceiptDraft(purchase)).receivedAt}
-                          onChange={(event) =>
-                            setReceiptDrafts((current) => ({
-                              ...current,
-                              [purchase.id]: {
-                                ...(current[purchase.id] ?? initializeReceiptDraft(purchase)),
-                                receivedAt: event.target.value
-                              }
-                            }))
-                          }
-                        />
-                        <Input
-                          placeholder="Notas de entrega"
-                          value={(receiptDrafts[purchase.id] ?? initializeReceiptDraft(purchase)).notes}
-                          onChange={(event) =>
-                            setReceiptDrafts((current) => ({
-                              ...current,
-                              [purchase.id]: {
-                                ...(current[purchase.id] ?? initializeReceiptDraft(purchase)),
-                                notes: event.target.value
-                              }
-                            }))
-                          }
-                        />
-                      </div>
-                      <div className="mt-4 space-y-3">
-                        {purchase.items.map((item) => (
-                          <div key={item.id} className="grid gap-3 rounded-2xl border border-stone-200 bg-white px-4 py-3 md:grid-cols-[1fr_120px] md:items-center">
-                            <div>
-                              <div className="font-semibold text-stone-900">{item.productName}</div>
-                              <div className="text-xs text-stone-500">
-                                Pendiente: {getPurchaseRemainingUnitQty(item)} {item.unitName.toLowerCase()}{getPurchaseRemainingUnitQty(item) === 1 ? '' : 's'}
-                              </div>
-                            </div>
-                            <Input
-                              type="number"
-                              min={0}
-                              max={getPurchaseRemainingUnitQty(item)}
-                              value={(receiptDrafts[purchase.id] ?? initializeReceiptDraft(purchase)).items[item.id] ?? ''}
-                              onChange={(event) =>
-                                setReceiptDrafts((current) => ({
-                                  ...current,
-                                  [purchase.id]: {
-                                    ...(current[purchase.id] ?? initializeReceiptDraft(purchase)),
-                                    items: {
-                                      ...(current[purchase.id] ?? initializeReceiptDraft(purchase)).items,
-                                      [item.id]: event.target.value
-                                    }
-                                  }
-                                }))
-                              }
-                            />
-                          </div>
-                        ))}
-                      </div>
-                      <div className="mt-4 flex gap-2">
-                        <Button type="button" onClick={() => receivePurchase(purchase)} disabled={busyPurchaseId === purchase.id}>
-                          {busyPurchaseId === purchase.id ? 'Guardando recepción...' : 'Guardar recepción'}
-                        </Button>
-                        <Button type="button" variant="ghost" onClick={() => setActiveReceiptId(null)}>
-                          Ocultar
-                        </Button>
-                      </div>
-                    </div>
-                  ) : null}
-
-                  <div className="mt-4 rounded-2xl border border-stone-200 bg-stone-50 p-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <div className="text-sm font-semibold text-stone-900">Historial de entregas</div>
-                        <div className="text-xs text-stone-500">Cada entrega actualiza el inventario únicamente por lo recibido efectivamente.</div>
-                      </div>
-                      <div className="text-xs text-stone-500">{purchase.receipts?.length ?? 0} recepción(es)</div>
-                    </div>
-                    <div className="mt-3 space-y-3">
-                      {purchase.receipts?.length ? (
-                        purchase.receipts.map((receipt) => (
-                          <div key={receipt.id} className="rounded-2xl border border-stone-200 bg-white px-4 py-3">
-                            <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-                              <div>
-                                <div className="font-semibold text-stone-900">{dateTime(receipt.receivedAt)}</div>
-                                <div className="text-xs text-stone-500">
-                                  Recibido por {receipt.receivedByUser.name ?? receipt.receivedByUser.email}
-                                </div>
-                              </div>
-                              {receipt.notes ? <div className="text-sm text-stone-500">{receipt.notes}</div> : null}
-                            </div>
-                            <div className="mt-3 space-y-2 text-sm text-stone-600">
-                              {receipt.items.map((item) => (
-                                <div key={item.id} className="flex justify-between">
-                                  <span>{item.product.name}</span>
-                                  <span>{item.qtyReceived} recibidos</span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        ))
-                      ) : (
-                        <div className="text-sm text-stone-500">Aún no se han registrado entregas.</div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="mt-4 rounded-2xl border border-stone-200 bg-stone-50 p-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <div className="text-sm font-semibold text-stone-900">Factura de proveedor y cuenta por pagar</div>
-                        <div className="text-xs text-stone-500">Conserva los detalles de la factura y el saldo por pagar vinculados a esta compra.</div>
-                      </div>
-                      {invoice?.payableEntry ? (
-                        <div className="text-right">
-                          <div className="text-xs text-stone-500">Saldo pendiente</div>
-                          <div className="font-black text-stone-900">{money(invoice.payableEntry.balance, currencySymbol)}</div>
-                        </div>
-                      ) : null}
-                    </div>
-
-                    {invoice ? (
-                      <div className="mt-3 rounded-2xl border border-stone-200 bg-white px-4 py-4">
-                        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                          <div>
-                            <div className="font-semibold text-stone-900">{invoice.invoiceNumber}</div>
-                            <div className="mt-1 flex flex-wrap gap-2">
-                              <Badge tone={payableStatusTone(invoice.paymentStatus)}>
-                                {getPayableStatusLabel(invoice.paymentStatus)}
-                              </Badge>
-                              <Badge tone="stone">Vence el {shortDate(invoice.dueDate)}</Badge>
-                            </div>
-                          </div>
-                          <div className="text-right text-sm text-stone-600">
-                            <div>Total: {money(invoice.totalAmount, currencySymbol)}</div>
-                            <div>Pagado: {money(invoice.payableEntry?.amountPaid ?? '0', currencySymbol)}</div>
-                            <div>Saldo: {money(invoice.payableEntry?.balance ?? '0', currencySymbol)}</div>
-                          </div>
-                        </div>
-                        <div className="mt-3 text-sm text-stone-500">
-                          Fecha de factura: {shortDate(invoice.invoiceDate)}
-                          {invoice.notes ? ` / ${invoice.notes}` : ''}
-                        </div>
-
-                        <div className="mt-4 space-y-2">
-                          <div className="text-sm font-semibold text-stone-900">Historial de pagos</div>
-                          {invoice.payments?.length ? (
-                            invoice.payments.map((payment) => (
-                              <div key={payment.id} className="flex flex-col gap-1 rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-700 md:flex-row md:items-center md:justify-between">
-                                <div>
-                                  <div className="font-semibold text-stone-900">
-                                    {payment.method === 'Cash' ? 'Efectivo' : payment.method === 'Card' ? 'Tarjeta' : payment.method === 'E-Wallet' ? 'Billetera digital' : payment.method === 'Bank Transfer' ? 'Transferencia bancaria' : payment.method} / {money(payment.amount, currencySymbol)}
-                                  </div>
-                                  <div className="text-xs text-stone-500">
-                                    {dateTime(payment.paidAt)} / {payment.createdByUser.name ?? payment.createdByUser.email}
-                                  </div>
-                                </div>
-                                <div className="text-xs text-stone-500">
-                                  {payment.referenceNumber ? `Ref. ${payment.referenceNumber}` : 'Sin referencia'}
-                                </div>
-                              </div>
-                            ))
-                          ) : (
-                            <div className="text-sm text-stone-500">Aún no se han registrado pagos al proveedor.</div>
-                          )}
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="mt-3 text-sm text-stone-500">Aún no se ha registrado una factura de proveedor para esta compra.</div>
-                    )}
-
-                    {activeInvoiceId === purchase.id ? (
-                      <div className="mt-4 rounded-2xl border border-stone-200 bg-white p-4">
-                        <div className="grid gap-3 md:grid-cols-2">
-                          <Input
-                            placeholder="Número de factura"
-                            value={(invoiceDrafts[purchase.id] ?? initializeInvoiceDraft(purchase)).invoiceNumber}
-                            onChange={(event) =>
-                              setInvoiceDrafts((current) => ({
-                                ...current,
-                                [purchase.id]: {
-                                  ...(current[purchase.id] ?? initializeInvoiceDraft(purchase)),
-                                  invoiceNumber: event.target.value
-                                }
-                              }))
-                            }
-                          />
-                          <Input
-                            type="number"
-                            step="0.01"
-                            placeholder="Total de factura"
-                            value={(invoiceDrafts[purchase.id] ?? initializeInvoiceDraft(purchase)).totalAmount}
-                            onChange={(event) =>
-                              setInvoiceDrafts((current) => ({
-                                ...current,
-                                [purchase.id]: {
-                                  ...(current[purchase.id] ?? initializeInvoiceDraft(purchase)),
-                                  totalAmount: event.target.value
-                                }
-                              }))
-                            }
-                          />
-                          <Input
-                            type="date"
-                            value={(invoiceDrafts[purchase.id] ?? initializeInvoiceDraft(purchase)).invoiceDate}
-                            onChange={(event) =>
-                              setInvoiceDrafts((current) => ({
-                                ...current,
-                                [purchase.id]: {
-                                  ...(current[purchase.id] ?? initializeInvoiceDraft(purchase)),
-                                  invoiceDate: event.target.value
-                                }
-                              }))
-                            }
-                          />
-                          <Input
-                            type="date"
-                            value={(invoiceDrafts[purchase.id] ?? initializeInvoiceDraft(purchase)).dueDate}
-                            onChange={(event) =>
-                              setInvoiceDrafts((current) => ({
-                                ...current,
-                                [purchase.id]: {
-                                  ...(current[purchase.id] ?? initializeInvoiceDraft(purchase)),
-                                  dueDate: event.target.value
-                                }
-                              }))
-                            }
-                          />
-                        </div>
-                        <textarea
-                          className="mt-3 min-h-24 w-full rounded-2xl border border-stone-200 bg-white/88 px-4 py-3 text-sm text-stone-900 outline-none transition placeholder:text-stone-400 hover:border-stone-300 focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-500/10"
-                          placeholder="Notas de factura"
-                          value={(invoiceDrafts[purchase.id] ?? initializeInvoiceDraft(purchase)).notes}
-                          onChange={(event) =>
-                            setInvoiceDrafts((current) => ({
-                              ...current,
-                              [purchase.id]: {
-                                ...(current[purchase.id] ?? initializeInvoiceDraft(purchase)),
-                                notes: event.target.value
-                              }
-                            }))
-                          }
-                        />
-                        <div className="mt-4 flex gap-2">
-                          <Button type="button" onClick={() => saveInvoice(purchase)} disabled={busyPurchaseId === purchase.id}>
-                            {busyPurchaseId === purchase.id ? 'Guardando factura...' : 'Guardar factura'}
-                          </Button>
-                          <Button type="button" variant="ghost" onClick={() => setActiveInvoiceId(null)}>
-                            Ocultar
-                          </Button>
-                        </div>
-                      </div>
-                    ) : null}
-
-                    {activePaymentId === purchase.id && invoice ? (
-                      <div className="mt-4 rounded-2xl border border-stone-200 bg-white p-4">
-                        <div className="grid gap-3 md:grid-cols-2">
-                          <select
-                            className="rounded-xl border border-stone-300 bg-stone-50 px-4 py-2.5 text-sm"
-                            value={(paymentDrafts[purchase.id] ?? initializePaymentDraft(invoice)).method}
-                            onChange={(event) =>
-                              setPaymentDrafts((current) => ({
-                                ...current,
-                                [purchase.id]: {
-                                  ...(current[purchase.id] ?? initializePaymentDraft(invoice)),
-                                  method: event.target.value
-                                }
-                              }))
-                            }
-                          >
-                            {PAYMENT_METHODS.map((method) => (
-                              <option key={method} value={method}>
-                                {method === 'Cash' ? 'Efectivo' : method === 'Card' ? 'Tarjeta' : method === 'E-Wallet' ? 'Billetera digital' : method === 'Bank Transfer' ? 'Transferencia bancaria' : method}
-                              </option>
-                            ))}
-                          </select>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            placeholder="Monto"
-                            value={(paymentDrafts[purchase.id] ?? initializePaymentDraft(invoice)).amount}
-                            onChange={(event) =>
-                              setPaymentDrafts((current) => ({
-                                ...current,
-                                [purchase.id]: {
-                                  ...(current[purchase.id] ?? initializePaymentDraft(invoice)),
-                                  amount: event.target.value
-                                }
-                              }))
-                            }
-                          />
-                          <Input
-                            placeholder="Número de referencia"
-                            value={(paymentDrafts[purchase.id] ?? initializePaymentDraft(invoice)).referenceNumber}
-                            onChange={(event) =>
-                              setPaymentDrafts((current) => ({
-                                ...current,
-                                [purchase.id]: {
-                                  ...(current[purchase.id] ?? initializePaymentDraft(invoice)),
-                                  referenceNumber: event.target.value
-                                }
-                              }))
-                            }
-                          />
-                          <Input
-                            type="date"
-                            value={(paymentDrafts[purchase.id] ?? initializePaymentDraft(invoice)).paidAt}
-                            onChange={(event) =>
-                              setPaymentDrafts((current) => ({
-                                ...current,
-                                [purchase.id]: {
-                                  ...(current[purchase.id] ?? initializePaymentDraft(invoice)),
-                                  paidAt: event.target.value
-                                }
-                              }))
-                            }
-                          />
-                        </div>
-                        <div className="mt-4 flex gap-2">
-                          <Button type="button" onClick={() => recordPayment(purchase)} disabled={busyPurchaseId === purchase.id}>
-                            {busyPurchaseId === purchase.id ? 'Guardando pago...' : 'Registrar pago'}
-                          </Button>
-                          <Button type="button" variant="ghost" onClick={() => setActivePaymentId(null)}>
-                            Ocultar
-                          </Button>
-                        </div>
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-              );
-            })
-          ) : (
-            <div className="text-sm text-stone-500">Aún no se han registrado compras.</div>
-          )}
-        </div>
-      </Card>
+        <PurchaseHistoryTab
+          history={history}
+          filteredHistory={filteredHistory}
+          suppliers={suppliers}
+          currencySymbol={currencySymbol}
+          fieldClass={fieldClass}
+          historySearch={historySearch}
+          setHistorySearch={setHistorySearch}
+          historyRange={historyRange}
+          setHistoryRange={setHistoryRange}
+          historySupplier={historySupplier}
+          setHistorySupplier={setHistorySupplier}
+          historyStatus={historyStatus}
+          setHistoryStatus={setHistoryStatus}
+          historyPayment={historyPayment}
+          setHistoryPayment={setHistoryPayment}
+          historyFrom={historyFrom}
+          setHistoryFrom={setHistoryFrom}
+          historyTo={historyTo}
+          setHistoryTo={setHistoryTo}
+          hasActiveFilters={hasActiveFilters}
+          clearFilters={clearFilters}
+          busyPurchaseId={busyPurchaseId}
+          activeReceiptId={activeReceiptId}
+          setActiveReceiptId={setActiveReceiptId}
+          activeInvoiceId={activeInvoiceId}
+          setActiveInvoiceId={setActiveInvoiceId}
+          activePaymentId={activePaymentId}
+          setActivePaymentId={setActivePaymentId}
+          receiptDrafts={receiptDrafts}
+          setReceiptDrafts={setReceiptDrafts}
+          invoiceDrafts={invoiceDrafts}
+          setInvoiceDrafts={setInvoiceDrafts}
+          paymentDrafts={paymentDrafts}
+          setPaymentDrafts={setPaymentDrafts}
+          initializeReceiptDraft={initializeReceiptDraft}
+          initializeInvoiceDraft={initializeInvoiceDraft}
+          initializePaymentDraft={initializePaymentDraft}
+          getStatusButtonLabel={getStatusButtonLabel}
+          updateStatus={updateStatus}
+          receivePurchase={receivePurchase}
+          saveInvoice={saveInvoice}
+          recordPayment={recordPayment}
+        />
       ) : null}
 
       {pickerOpen ? (
