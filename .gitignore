@@ -8,5 +8,6 @@ prisma/dev.db
 *.log
 *.tsbuildinfo
 backups/
+graphify-out/
 public/uploads/products/*
 !public/uploads/products/.gitkeep
