@@ -1,32 +1,17 @@
+import {
+  addDays,
+  endOfDay,
+  formatDateInputValue as formatDateKey,
+  startOfDay
+} from '@/lib/format';
 import { prisma } from '@/lib/prisma';
 import { roundCurrency } from '@/lib/inventory';
 
 const ANALYTICS_WINDOW_DAYS = 30;
 const PURCHASE_HISTORY_LOOKBACK_DAYS = 180;
 
-function startOfDay(value: Date) {
-  return new Date(value.getFullYear(), value.getMonth(), value.getDate(), 0, 0, 0, 0);
-}
-
-function endOfDay(value: Date) {
-  return new Date(value.getFullYear(), value.getMonth(), value.getDate(), 23, 59, 59, 999);
-}
-
-function addDays(value: Date, amount: number) {
-  const next = new Date(value);
-  next.setDate(next.getDate() + amount);
-  return next;
-}
-
 function daysBetween(start: Date, end: Date) {
   return Math.max(1, Math.ceil((end.getTime() - start.getTime()) / 86_400_000));
-}
-
-function formatDateKey(value: Date) {
-  const year = value.getFullYear();
-  const month = `${value.getMonth() + 1}`.padStart(2, '0');
-  const day = `${value.getDate()}`.padStart(2, '0');
-  return `${year}-${month}-${day}`;
 }
 
 function shortLabel(value: Date) {

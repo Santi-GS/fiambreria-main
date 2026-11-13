@@ -50,3 +50,28 @@ export function compactNumber(value: number) {
     maximumFractionDigits: 1
   }).format(value);
 }
+
+/** Return a Date set to the start of the calendar day (00:00:00.000). */
+export function startOfDay(value: Date) {
+  return new Date(value.getFullYear(), value.getMonth(), value.getDate(), 0, 0, 0, 0);
+}
+
+/** Return a Date set to the end of the calendar day (23:59:59.999). */
+export function endOfDay(value: Date) {
+  return new Date(value.getFullYear(), value.getMonth(), value.getDate(), 23, 59, 59, 999);
+}
+
+/** Return a new Date shifted by the given number of calendar days. */
+export function addDays(value: Date, amount: number) {
+  const next = new Date(value);
+  next.setDate(next.getDate() + amount);
+  return next;
+}
+
+/** Format a local Date as YYYY-MM-DD for HTML date inputs and daily grouping keys. */
+export function formatDateInputValue(value = new Date()) {
+  const year = value.getFullYear();
+  const month = `${value.getMonth() + 1}`.padStart(2, '0');
+  const day = `${value.getDate()}`.padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}

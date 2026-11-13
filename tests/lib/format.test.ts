@@ -1,4 +1,13 @@
-import { compactNumber, dateTime, money, shortDate } from '../../lib/format';
+import {
+  addDays,
+  compactNumber,
+  dateTime,
+  endOfDay,
+  formatDateInputValue,
+  money,
+  shortDate,
+  startOfDay
+} from '../../lib/format';
 
 describe('lib/format', () => {
   it('formats peso values consistently', () => {
@@ -16,5 +25,19 @@ describe('lib/format', () => {
 
   it('formats compact numbers without crashing', () => {
     expect(compactNumber(1200)).toMatch(/1(\.|,)2\s?k/i);
+  });
+
+  it('computes startOfDay, endOfDay, addDays, and YYYY-MM-DD keys', () => {
+    const base = new Date(2026, 10, 13, 15, 42, 10);
+    const start = startOfDay(base);
+    const end = endOfDay(base);
+    const next = addDays(base, 2);
+
+    expect(start.getHours()).toBe(0);
+    expect(start.getMinutes()).toBe(0);
+    expect(end.getHours()).toBe(23);
+    expect(end.getMilliseconds()).toBe(999);
+    expect(formatDateInputValue(base)).toBe('2026-11-13');
+    expect(formatDateInputValue(next)).toBe('2026-11-15');
   });
 });

@@ -1,4 +1,10 @@
 import { Prisma } from '@prisma/client';
+import {
+  addDays,
+  endOfDay,
+  formatDateInputValue,
+  startOfDay
+} from '@/lib/format';
 import { getStockLevel, roundCurrency } from '@/lib/inventory';
 import { PAYMENT_METHODS } from '@/lib/payments';
 import { prisma } from '@/lib/prisma';
@@ -37,34 +43,11 @@ function readSingleParam(
   return Array.isArray(value) ? value[0] ?? '' : value ?? '';
 }
 
-function startOfDay(value: Date) {
-  return new Date(value.getFullYear(), value.getMonth(), value.getDate(), 0, 0, 0, 0);
-}
-
-function endOfDay(value: Date) {
-  return new Date(value.getFullYear(), value.getMonth(), value.getDate(), 23, 59, 59, 999);
-}
-
-function addDays(value: Date, amount: number) {
-  const next = new Date(value);
-  next.setDate(next.getDate() + amount);
-  return next;
-}
-
 function isValidDate(value: Date) {
   return !Number.isNaN(value.getTime());
 }
 
-function formatDateInputValue(value: Date) {
-  const year = value.getFullYear();
-  const month = `${value.getMonth() + 1}`.padStart(2, '0');
-  const day = `${value.getDate()}`.padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
-
-function dayKey(value: Date) {
-  return formatDateInputValue(value);
-}
+const dayKey = formatDateInputValue;
 
 function monthKey(value: Date) {
   return `${value.getFullYear()}-${`${value.getMonth() + 1}`.padStart(2, '0')}`;
